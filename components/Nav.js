@@ -16,7 +16,7 @@ export default function Nav() {
 
   async function logOut() {
     await supabase.auth.signOut()
-    router.push('/')
+    router.push('/login')
   }
 
   return (
@@ -24,10 +24,11 @@ export default function Nav() {
       <div className="top-inner">
         <Link href="/" className="logo">Rille</Link>
         <nav>
-          <Link href="/">Gennemse</Link>
           {session ? (
             <>
+              <Link href="/">Gennemse</Link>
               <Link href="/dashboard">Mit kontor</Link>
+              <Link href="/account">Min konto</Link>
               <button onClick={logOut} className="link-btn">Log ud</button>
             </>
           ) : (

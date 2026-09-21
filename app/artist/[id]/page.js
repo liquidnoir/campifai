@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 
+// Hvor længe et afspilningslink er gyldigt (6 timer)
+const SIGNED_URL_SECONDS = 60 * 60 * 6
+
 export default function ArtistPage() {
   const { id } = useParams()
   const [artist, setArtist] = useState(null)
@@ -22,12 +25,20 @@ export default function ArtistPage() {
       .select('*')
       .eq('artist_id', id)
       .order('created_at', { ascending: false })
+    const list = trackData || []
 
-    const withUrls = (trackData || []).map((t) => ({
-      ...t,
-      url: supabase.storage.from('tracks').getPublicUrl(t.audio_path).data.publicUrl,
-    }))
-    setTracks(withUrls)
+    // Bucketten er privat, så vi henter midlertidige links til lydfilerne
+    const urlByPath = {}
+    if (list.length > 0) {
+      const { data: signed } = await supabase.storage
+        .from('tracks')
+        .createSignedUrls(list.map((t) => t.audio_path), SIGNED_URL_SECONDS)
+      for (const s of signed || []) {
+        if (s.signedUrl) urlByPath[s.path] = s.signedUrl
+      }
+    }
+
+    setTracks(list.map((t) => ({ ...t, url: urlByPath[t.audio_path] || null })))
     setLoading(false)
   }
 
@@ -46,7 +57,11 @@ export default function ArtistPage() {
               {t.title}
               <div className="notice">{t.genre}</div>
             </div>
-            <audio controls src={t.url} />
+            {t.url ? (
+              <audio controls preload="none" src={t.url} />
+            ) : (
+              <span className="notice">Lydfilen kunne ikke hentes. Opdatér siden.</span>
+            )}
           </div>
         ))}
       </div>

@@ -5,6 +5,32 @@ import { supabase } from '../../lib/supabase'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
 
+// Supabase gratis-plan tillader højst 50 MB pr. fil.
+// Opgraderer du planen (og hæver grænsen under Storage → Settings), kan du ændre tallet her.
+const MAX_UPLOAD_MB = 50
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+
+function tooBigMessage(bytes) {
+  const mb = (bytes / 1024 / 1024).toFixed(1)
+  return `Filen er ${mb} MB, og grænsen er ${MAX_UPLOAD_MB} MB. Gem den som MP3 eller FLAC, og vælg den igen.`
+}
+
+// Fjerner tegn, som lagringen ikke kan lide (mellemrum, æøå osv.)
+function safeFileName(name) {
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  const cleanBase =
+    base
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80) || 'lyd'
+  const cleanExt = ext.replace(/[^a-zA-Z0-9.]/g, '').toLowerCase()
+  return cleanBase + cleanExt
+}
+
 export default function Dashboard() {
   const [session, setSession] = useState(undefined)
   const [profile, setProfile] = useState(null)
@@ -44,18 +70,39 @@ export default function Dashboard() {
     setMyTracks(data || [])
   }
 
+  function handleFileChange(e) {
+    const chosen = e.target.files[0] || null
+    setError('')
+    if (chosen && chosen.size > MAX_UPLOAD_BYTES) {
+      setFile(null)
+      e.target.value = ''
+      setError(tooBigMessage(chosen.size))
+      return
+    }
+    setFile(chosen)
+  }
+
   async function handleUpload(e) {
     e.preventDefault()
+    const form = e.target
     setError('')
     if (!title.trim() || !file) {
       setError('Angiv en titel og vælg en lydfil.')
       return
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(tooBigMessage(file.size))
+      return
+    }
     setUploading(true)
-    const path = `${session.user.id}/${Date.now()}-${file.name}`
+    const path = `${session.user.id}/${Date.now()}-${safeFileName(file.name)}`
     const { error: uploadError } = await supabase.storage.from('tracks').upload(path, file)
     if (uploadError) {
-      setError(uploadError.message)
+      if (/maximum allowed size|too large|exceeded/i.test(uploadError.message)) {
+        setError(tooBigMessage(file.size))
+      } else {
+        setError(uploadError.message)
+      }
       setUploading(false)
       return
     }
@@ -75,7 +122,7 @@ export default function Dashboard() {
     setTitle('')
     setGenre('')
     setFile(null)
-    e.target.reset()
+    form.reset()
     setUploading(false)
     loadMyTracks(session.user.id)
   }
@@ -117,7 +164,10 @@ export default function Dashboard() {
           </div>
           <div className="field">
             <label>Lydfil</label>
-            <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files[0])} />
+            <input type="file" accept="audio/*" onChange={handleFileChange} />
+            <div className="notice" style={{ marginTop: 6 }}>
+              Maks. {MAX_UPLOAD_MB} MB. MP3 og FLAC fylder langt mindre end WAV.
+            </div>
           </div>
           {error && <div className="error-msg">{error}</div>}
           <button className="btn" type="submit" disabled={uploading}>

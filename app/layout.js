@@ -1,5 +1,6 @@
 import './globals.css'
 import Nav from '../components/Nav'
+import AuthGate from '../components/AuthGate'
 
 export const metadata = {
   title: 'Rille',
@@ -19,7 +20,9 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <Nav />
-        <main className="wrap">{children}</main>
+        <main className="wrap">
+          <AuthGate>{children}</AuthGate>
+        </main>
       </body>
     </html>
   )
