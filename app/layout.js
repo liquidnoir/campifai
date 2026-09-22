@@ -3,7 +3,7 @@ import Nav from '../components/Nav'
 import AuthGate from '../components/AuthGate'
 
 export const metadata = {
-  title: 'Rille',
+  title: 'Campifai',
   description: 'Musik direkte fra kunstneren til dig',
 }
 

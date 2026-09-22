@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { MAX_ARTISTS } from '../../lib/shared'
 
 export default function Signup() {
   const [email, setEmail] = useState('')
@@ -58,10 +59,15 @@ export default function Signup() {
               Lytter
             </label>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input type="radio" checked={role === 'artist'} onChange={() => setRole('artist')} />
-              Kunstner
+              <input type="radio" checked={role === 'publisher'} onChange={() => setRole('publisher')} />
+              Publisher
             </label>
           </div>
+          {role === 'publisher' && (
+            <div className="notice" style={{ marginTop: 6 }}>
+              Som publisher kan du oprette op til {MAX_ARTISTS} kunstnere og uploade deres musik.
+            </div>
+          )}
         </div>
         <div className="field">
           <label htmlFor="name">Navn</label>

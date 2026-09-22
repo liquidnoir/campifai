@@ -17,8 +17,17 @@ export default function ArtistPage() {
   }, [id])
 
   async function loadArtist() {
-    const { data: profileData } = await supabase.from('profiles').select('*').eq('id', id).single()
-    setArtist(profileData)
+    const { data: artistData } = await supabase
+      .from('artists')
+      .select('id, name, bio, publisher_id, profiles ( display_name )')
+      .eq('id', id)
+      .single()
+    setArtist(artistData)
+
+    if (!artistData) {
+      setLoading(false)
+      return
+    }
 
     const { data: trackData } = await supabase
       .from('tracks')
@@ -45,9 +54,16 @@ export default function ArtistPage() {
   if (loading) return <p className="notice">Henter...</p>
   if (!artist) return <p className="notice">Kunstner ikke fundet.</p>
 
+  const publisherName = artist.profiles?.display_name
+  const showPublisher =
+    publisherName && publisherName.trim().toLowerCase() !== artist.name.trim().toLowerCase()
+
   return (
     <section>
-      <h2>{artist.display_name}</h2>
+      <h2>{artist.name}</h2>
+      {showPublisher && (
+        <p className="notice" style={{ marginTop: 4 }}>Udgivet af {publisherName}</p>
+      )}
       {artist.bio && <p className="notice" style={{ marginTop: 8 }}>{artist.bio}</p>}
       <div style={{ marginTop: 24 }}>
         {tracks.length === 0 && <p className="notice">Ingen numre udgivet endnu.</p>}

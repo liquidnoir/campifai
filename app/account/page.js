@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { MAX_ARTISTS, ROLE_LABELS, controlStyle, removeFolderFiles } from '../../lib/shared'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -100,25 +101,10 @@ export default function Account() {
     }
     setDeleting(true)
     try {
-      const userId = session.user.id
-
       // 1. Slet alle lydfiler i din mappe (skal gøres før kontoen kan slettes)
-      for (let i = 0; i < 50; i++) {
-        const { data: files, error: listError } = await supabase.storage
-          .from('tracks')
-          .list(userId, { limit: 100 })
-        if (listError) throw listError
-        if (!files || files.length === 0) break
-        const { data: removed, error: removeError } = await supabase.storage
-          .from('tracks')
-          .remove(files.map((f) => `${userId}/${f.name}`))
-        if (removeError) throw removeError
-        if (!removed || removed.length === 0) {
-          throw new Error('Kunne ikke slette alle dine lydfiler. Prøv igen.')
-        }
-      }
+      await removeFolderFiles(supabase, session.user.id)
 
-      // 2. Slet kontoen (profil og numre forsvinder automatisk med)
+      // 2. Slet kontoen (profil, kunstnere og numre forsvinder automatisk med)
       const { error: rpcError } = await supabase.rpc('delete_my_account')
       if (rpcError) throw rpcError
 
@@ -133,7 +119,9 @@ export default function Account() {
   if (loading) return <p className="notice">Henter...</p>
   if (!profile) return <p className="notice">Kunne ikke hente din profil. Opdatér siden.</p>
 
-  const roleLabel = profile.role === 'artist' ? 'Kunstner' : 'Lytter'
+  const roleLabel = ROLE_LABELS[profile.role] || profile.role
+  const isPublisher = profile.role === 'publisher'
+  const isAdmin = profile.role === 'admin'
 
   return (
     <section>
@@ -141,6 +129,11 @@ export default function Account() {
       <p className="notice" style={{ marginTop: 8 }}>
         {session.user.email} · {roleLabel}
       </p>
+      {isPublisher && (
+        <p className="notice" style={{ marginTop: 4 }}>
+          Som publisher kan du oprette op til {MAX_ARTISTS} kunstnere under Mit kontor.
+        </p>
+      )}
 
       <form onSubmit={saveProfile} className="panel" style={{ maxWidth: 520, marginTop: 20 }}>
         <h3 style={{ fontSize: 16, marginBottom: 16 }}>Profil</h3>
@@ -160,17 +153,7 @@ export default function Account() {
             maxLength={500}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            style={{
-              width: '100%',
-              minHeight: 96,
-              padding: 10,
-              boxSizing: 'border-box',
-              font: 'inherit',
-              color: 'inherit',
-              background: 'transparent',
-              border: '1px solid rgba(0,0,0,0.25)',
-              resize: 'vertical',
-            }}
+            style={{ ...controlStyle, minHeight: 96, resize: 'vertical' }}
           />
         </div>
         <Msg msg={profileMsg} />
@@ -207,31 +190,40 @@ export default function Account() {
         </button>
       </form>
 
-      <form
-        onSubmit={deleteAccount}
-        className="panel"
-        style={{ maxWidth: 520, marginTop: 24, marginBottom: 40, borderColor: '#B8452B' }}
-      >
-        <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
-        <p className="notice" style={{ marginBottom: 16 }}>
-          Din konto, din profil
-          {profile.role === 'artist' ? ', alle dine numre og lydfiler' : ''} slettes permanent. Det kan
-          ikke fortrydes.
-        </p>
-        <div className="field">
-          <label htmlFor="confirm">Skriv SLET for at bekræfte</label>
-          <input
-            id="confirm"
-            autoComplete="off"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-          />
+      {isAdmin ? (
+        <div className="panel" style={{ maxWidth: 520, marginTop: 24, marginBottom: 40 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
+          <p className="notice">
+            Admin-konti kan ikke slettes her. Bed en anden admin om først at fjerne din adminrolle.
+          </p>
         </div>
-        <Msg msg={deleteMsg} />
-        <button className="btn" type="submit" disabled={deleting}>
-          {deleting ? 'Sletter...' : 'Slet min konto'}
-        </button>
-      </form>
+      ) : (
+        <form
+          onSubmit={deleteAccount}
+          className="panel"
+          style={{ maxWidth: 520, marginTop: 24, marginBottom: 40, borderColor: '#B8452B' }}
+        >
+          <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
+          <p className="notice" style={{ marginBottom: 16 }}>
+            Din konto og din profil
+            {isPublisher ? ', alle dine kunstnere, numre og lydfiler' : ''} slettes permanent. Det kan
+            ikke fortrydes.
+          </p>
+          <div className="field">
+            <label htmlFor="confirm">Skriv SLET for at bekræfte</label>
+            <input
+              id="confirm"
+              autoComplete="off"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+            />
+          </div>
+          <Msg msg={deleteMsg} />
+          <button className="btn" type="submit" disabled={deleting}>
+            {deleting ? 'Sletter...' : 'Slet min konto'}
+          </button>
+        </form>
+      )}
     </section>
   )
 }

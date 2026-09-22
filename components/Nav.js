@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { canPublish } from '../lib/shared'
 
 export default function Nav() {
   const [session, setSession] = useState(null)
+  const [role, setRole] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -13,6 +15,21 @@ export default function Nav() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
     return () => listener.subscription.unsubscribe()
   }, [])
+
+  const userId = session?.user?.id
+
+  useEffect(() => {
+    if (!userId) {
+      setRole(null)
+      return
+    }
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+      .then(({ data }) => setRole(data?.role || null))
+  }, [userId])
 
   async function logOut() {
     await supabase.auth.signOut()
@@ -22,12 +39,13 @@ export default function Nav() {
   return (
     <header className="top">
       <div className="top-inner">
-        <Link href="/" className="logo">Rille</Link>
+        <Link href="/" className="logo">Campifai</Link>
         <nav>
           {session ? (
             <>
               <Link href="/">Gennemse</Link>
-              <Link href="/dashboard">Mit kontor</Link>
+              {canPublish(role) && <Link href="/dashboard">Mit kontor</Link>}
+              {role === 'admin' && <Link href="/admin">Admin</Link>}
               <Link href="/account">Min konto</Link>
               <button onClick={logOut} className="link-btn">Log ud</button>
             </>
