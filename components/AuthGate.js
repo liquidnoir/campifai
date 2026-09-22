@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 
-// Sider man må se uden at være logget ind
-const PUBLIC_PATHS = ['/login', '/signup']
+// Sider man må se uden at være logget ind.
+// Forsiden viser kun titler, aldrig afspilning, så den er også offentlig.
+const PUBLIC_PATHS = ['/', '/login', '/signup']
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined) // undefined = tjekker stadig

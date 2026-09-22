@@ -70,7 +70,7 @@ export default function AdminPage() {
   async function loadArtists() {
     const { data, error } = await supabase
       .from('artists')
-      .select('id, name, bio, publisher_id, created_at, profiles ( display_name ), tracks ( count )')
+      .select('id, name, bio, publisher_id, created_at, profiles ( display_name ), releases ( count ), tracks ( count )')
       .order('created_at', { ascending: false })
     if (error) {
       setMsg({ type: 'error', text: error.message })
@@ -130,6 +130,7 @@ export default function AdminPage() {
     }
     const parts = [`Slet ${u.display_name} (${u.email})`]
     if (u.artist_count > 0) parts.push(`${u.artist_count} kunstnere`)
+    if (u.release_count > 0) parts.push(`${u.release_count} udgivelser`)
     if (u.track_count > 0) parts.push(`${u.track_count} numre`)
     const question = parts.join(', ') + '? Det kan ikke fortrydes.'
     if (!window.confirm(question)) return
@@ -187,10 +188,11 @@ export default function AdminPage() {
 
   async function deleteArtist(a) {
     setMsg(null)
-    const count = a.tracks?.[0]?.count ?? 0
+    const trackCount = a.tracks?.[0]?.count ?? 0
+    const releaseCount = a.releases?.[0]?.count ?? 0
     const question =
-      count > 0
-        ? `Slet ${a.name} og de ${count} numre? Det kan ikke fortrydes.`
+      trackCount > 0
+        ? `Slet ${a.name}, med ${releaseCount} udgivelser og ${trackCount} numre? Det kan ikke fortrydes.`
         : `Slet ${a.name}? Det kan ikke fortrydes.`
     if (!window.confirm(question)) return
     setBusy(a.id)
@@ -303,7 +305,7 @@ export default function AdminPage() {
                 </div>
                 <div className="notice" style={{ marginTop: 8 }}>
                   {u.email} · oprettet {formatDate(u.created_at)} · {u.artist_count} kunstnere ·{' '}
-                  {u.track_count} numre
+                  {u.release_count} udgivelser · {u.track_count} numre
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                   <button
@@ -362,7 +364,8 @@ export default function AdminPage() {
               </div>
               <div className="notice" style={{ marginTop: 8 }}>
                 Publisher: {a.profiles?.display_name || 'ukendt'} · oprettet {formatDate(a.created_at)} ·{' '}
-                {a.tracks?.[0]?.count ?? 0} numre · <Link href={`/artist/${a.id}`}>Se side</Link>
+                {a.releases?.[0]?.count ?? 0} udgivelser · {a.tracks?.[0]?.count ?? 0} numre ·{' '}
+                <Link href={`/artist/${a.id}`}>Se side</Link>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <button

@@ -104,7 +104,7 @@ export default function Account() {
       // 1. Slet alle lydfiler i din mappe (skal gøres før kontoen kan slettes)
       await removeFolderFiles(supabase, session.user.id)
 
-      // 2. Slet kontoen (profil, kunstnere og numre forsvinder automatisk med)
+      // 2. Slet kontoen (profil, kunstnere, udgivelser og numre forsvinder automatisk med)
       const { error: rpcError } = await supabase.rpc('delete_my_account')
       if (rpcError) throw rpcError
 
@@ -131,7 +131,7 @@ export default function Account() {
       </p>
       {isPublisher && (
         <p className="notice" style={{ marginTop: 4 }}>
-          Som publisher kan du oprette op til {MAX_ARTISTS} kunstnere under Mit kontor.
+          Som publisher kan du oprette op til {MAX_ARTISTS} kunstnere under Udgivelser.
         </p>
       )}
 
@@ -206,8 +206,8 @@ export default function Account() {
           <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
           <p className="notice" style={{ marginBottom: 16 }}>
             Din konto og din profil
-            {isPublisher ? ', alle dine kunstnere, numre og lydfiler' : ''} slettes permanent. Det kan
-            ikke fortrydes.
+            {isPublisher ? ', alle dine kunstnere, udgivelser, numre og lydfiler' : ''} slettes
+            permanent. Det kan ikke fortrydes.
           </p>
           <div className="field">
             <label htmlFor="confirm">Skriv SLET for at bekræfte</label>

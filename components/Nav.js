@@ -41,10 +41,10 @@ export default function Nav() {
       <div className="top-inner">
         <Link href="/" className="logo">Campifai</Link>
         <nav>
+          <Link href="/">Gennemse</Link>
           {session ? (
             <>
-              <Link href="/">Gennemse</Link>
-              {canPublish(role) && <Link href="/dashboard">Mit kontor</Link>}
+              {canPublish(role) && <Link href="/dashboard">Udgivelser</Link>}
               {role === 'admin' && <Link href="/admin">Admin</Link>}
               <Link href="/account">Min konto</Link>
               <button onClick={logOut} className="link-btn">Log ud</button>

@@ -3,7 +3,13 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import { MAX_ARTISTS, canPublish, controlStyle } from '../../lib/shared'
+import {
+  MAX_ARTISTS,
+  RELEASE_TYPE_LABELS,
+  RELEASE_TYPE_LIMITS,
+  canPublish,
+  controlStyle,
+} from '../../lib/shared'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
 
@@ -33,29 +39,43 @@ function safeFileName(name) {
   return cleanBase + cleanExt
 }
 
+function Msg({ msg }) {
+  if (!msg) return null
+  return <div className="error-msg">{msg}</div>
+}
+
 export default function Dashboard() {
   const [session, setSession] = useState(undefined)
   const [profile, setProfile] = useState(null)
   const [artists, setArtists] = useState([])
+  const [releases, setReleases] = useState([])
   const [tracks, setTracks] = useState([])
+  const router = useRouter()
 
   // Kunstnere
-  const [newName, setNewName] = useState('')
-  const [newBio, setNewBio] = useState('')
+  const [newArtistName, setNewArtistName] = useState('')
+  const [newArtistBio, setNewArtistBio] = useState('')
   const [artistError, setArtistError] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [editName, setEditName] = useState('')
-  const [editBio, setEditBio] = useState('')
+  const [creatingArtist, setCreatingArtist] = useState(false)
+  const [editingArtistId, setEditingArtistId] = useState(null)
+  const [editArtistName, setEditArtistName] = useState('')
+  const [editArtistBio, setEditArtistBio] = useState('')
+
+  // Ny udgivelse pr. kunstner (holdt i et map, så flere kunstnere kan udfyldes uafhængigt)
+  const [newRelease, setNewRelease] = useState({}) // { [artistId]: { title, type } }
+  const [releaseError, setReleaseError] = useState('')
+  const [creatingReleaseFor, setCreatingReleaseFor] = useState(null)
+  const [editingReleaseId, setEditingReleaseId] = useState(null)
+  const [editReleaseTitle, setEditReleaseTitle] = useState('')
+  const [editReleaseType, setEditReleaseType] = useState('single')
 
   // Upload
-  const [artistId, setArtistId] = useState('')
-  const [title, setTitle] = useState('')
-  const [genre, setGenre] = useState('')
-  const [file, setFile] = useState(null)
-  const [error, setError] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const router = useRouter()
+  const [uploadReleaseId, setUploadReleaseId] = useState({}) // { [artistId]: releaseId }
+  const [title, setTitle] = useState({})
+  const [genre, setGenre] = useState({})
+  const [file, setFile] = useState({})
+  const [uploadError, setUploadError] = useState({})
+  const [uploading, setUploading] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -74,34 +94,33 @@ export default function Dashboard() {
     const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
     setProfile(data)
     if (data && canPublish(data.role)) {
-      await Promise.all([loadArtists(session.user.id), loadTracks(session.user.id)])
+      await loadAll(session.user.id)
     }
   }
 
-  async function loadArtists(uid) {
-    const { data } = await supabase
-      .from('artists')
-      .select('*')
-      .eq('publisher_id', uid)
-      .order('created_at', { ascending: true })
-    const list = data || []
-    setArtists(list)
-    setArtistId((current) => (current && list.some((a) => a.id === current) ? current : list[0]?.id || ''))
+  async function loadAll(uid) {
+    const [artistsRes, releasesRes, tracksRes] = await Promise.all([
+      supabase.from('artists').select('*').eq('publisher_id', uid).order('created_at', { ascending: true }),
+      supabase.from('releases').select('*').eq('publisher_id', uid).order('created_at', { ascending: true }),
+      supabase.from('tracks').select('*').eq('publisher_id', uid).order('created_at', { ascending: true }),
+    ])
+    setArtists(artistsRes.data || [])
+    setReleases(releasesRes.data || [])
+    setTracks(tracksRes.data || [])
   }
 
-  async function loadTracks(uid) {
-    const { data } = await supabase
-      .from('tracks')
-      .select('*')
-      .eq('publisher_id', uid)
-      .order('created_at', { ascending: false })
-    setTracks(data || [])
+  function releasesFor(artistId) {
+    return releases.filter((r) => r.artist_id === artistId)
+  }
+  function tracksFor(releaseId) {
+    return tracks.filter((t) => t.release_id === releaseId)
   }
 
+  // ----- Kunstnere -----
   async function createArtist(e) {
     e.preventDefault()
     setArtistError('')
-    const name = newName.trim()
+    const name = newArtistName.trim()
     if (!name) {
       setArtistError('Angiv et navn til kunstneren.')
       return
@@ -110,138 +129,233 @@ export default function Dashboard() {
       setArtistError(`Du kan højst have ${MAX_ARTISTS} kunstnere.`)
       return
     }
-    setCreating(true)
-    const { error: insertError } = await supabase
+    setCreatingArtist(true)
+    const { error } = await supabase
       .from('artists')
-      .insert({ publisher_id: session.user.id, name, bio: newBio.trim() || null })
-    setCreating(false)
-    if (insertError) {
-      setArtistError(insertError.message)
+      .insert({ publisher_id: session.user.id, name, bio: newArtistBio.trim() || null })
+    setCreatingArtist(false)
+    if (error) {
+      setArtistError(error.message)
       return
     }
-    setNewName('')
-    setNewBio('')
-    loadArtists(session.user.id)
+    setNewArtistName('')
+    setNewArtistBio('')
+    loadAll(session.user.id)
   }
 
-  function startEdit(a) {
+  function startEditArtist(a) {
     setArtistError('')
-    setEditingId(a.id)
-    setEditName(a.name)
-    setEditBio(a.bio || '')
+    setEditingArtistId(a.id)
+    setEditArtistName(a.name)
+    setEditArtistBio(a.bio || '')
   }
 
   async function saveArtist(a) {
     setArtistError('')
-    const name = editName.trim()
+    const name = editArtistName.trim()
     if (!name) {
       setArtistError('Navnet må ikke være tomt.')
       return
     }
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from('artists')
-      .update({ name, bio: editBio.trim() || null })
+      .update({ name, bio: editArtistBio.trim() || null })
       .eq('id', a.id)
-    if (updateError) {
-      setArtistError(updateError.message)
+    if (error) {
+      setArtistError(error.message)
       return
     }
-    setEditingId(null)
-    loadArtists(session.user.id)
+    setEditingArtistId(null)
+    loadAll(session.user.id)
   }
 
   async function deleteArtist(a) {
-    const own = tracks.filter((t) => t.artist_id === a.id)
+    const ownTracks = tracks.filter((t) => t.artist_id === a.id)
+    const ownReleases = releasesFor(a.id)
     const question =
-      own.length > 0
-        ? `Slet ${a.name} og de ${own.length} numre? Det kan ikke fortrydes.`
+      ownReleases.length > 0
+        ? `Slet ${a.name}, med ${ownReleases.length} udgivelser og ${ownTracks.length} numre? Det kan ikke fortrydes.`
         : `Slet ${a.name}? Det kan ikke fortrydes.`
     if (!window.confirm(question)) return
     setArtistError('')
-    if (own.length > 0) {
+    if (ownTracks.length > 0) {
       const { error: removeError } = await supabase.storage
         .from('tracks')
-        .remove(own.map((t) => t.audio_path))
+        .remove(ownTracks.map((t) => t.audio_path))
       if (removeError) {
         setArtistError(removeError.message)
         return
       }
     }
-    const { error: deleteError } = await supabase.from('artists').delete().eq('id', a.id)
-    if (deleteError) {
-      setArtistError(deleteError.message)
+    const { error } = await supabase.from('artists').delete().eq('id', a.id)
+    if (error) {
+      setArtistError(error.message)
       return
     }
-    await Promise.all([loadArtists(session.user.id), loadTracks(session.user.id)])
+    loadAll(session.user.id)
   }
 
-  function handleFileChange(e) {
+  // ----- Udgivelser -----
+  function releaseField(artistId, field, fallback) {
+    return newRelease[artistId]?.[field] ?? fallback
+  }
+  function setReleaseFieldValue(artistId, field, value) {
+    setNewRelease((prev) => ({ ...prev, [artistId]: { ...prev[artistId], [field]: value } }))
+  }
+
+  async function createRelease(e, artistId) {
+    e.preventDefault()
+    setReleaseError('')
+    const titleValue = releaseField(artistId, 'title', '').trim()
+    const type = releaseField(artistId, 'type', 'single')
+    if (!titleValue) {
+      setReleaseError('Angiv en titel til udgivelsen.')
+      return
+    }
+    setCreatingReleaseFor(artistId)
+    const { error } = await supabase
+      .from('releases')
+      .insert({ publisher_id: session.user.id, artist_id: artistId, title: titleValue, type })
+    setCreatingReleaseFor(null)
+    if (error) {
+      setReleaseError(error.message)
+      return
+    }
+    setNewRelease((prev) => ({ ...prev, [artistId]: { title: '', type: 'single' } }))
+    loadAll(session.user.id)
+  }
+
+  function startEditRelease(r) {
+    setReleaseError('')
+    setEditingReleaseId(r.id)
+    setEditReleaseTitle(r.title)
+    setEditReleaseType(r.type)
+  }
+
+  async function saveRelease(r) {
+    setReleaseError('')
+    const titleValue = editReleaseTitle.trim()
+    if (!titleValue) {
+      setReleaseError('Titlen må ikke være tom.')
+      return
+    }
+    const currentCount = tracksFor(r.id).length
+    if (editReleaseType !== r.type && currentCount > RELEASE_TYPE_LIMITS[editReleaseType]) {
+      setReleaseError(
+        `Udgivelsen har ${currentCount} numre, hvilket er for mange til typen ${RELEASE_TYPE_LABELS[editReleaseType]}.`
+      )
+      return
+    }
+    const { error } = await supabase
+      .from('releases')
+      .update({ title: titleValue, type: editReleaseType })
+      .eq('id', r.id)
+    if (error) {
+      setReleaseError(error.message)
+      return
+    }
+    setEditingReleaseId(null)
+    loadAll(session.user.id)
+  }
+
+  async function deleteRelease(r) {
+    const own = tracksFor(r.id)
+    const question =
+      own.length > 0
+        ? `Slet "${r.title}" og de ${own.length} numre? Det kan ikke fortrydes.`
+        : `Slet "${r.title}"? Det kan ikke fortrydes.`
+    if (!window.confirm(question)) return
+    setReleaseError('')
+    if (own.length > 0) {
+      const { error: removeError } = await supabase.storage
+        .from('tracks')
+        .remove(own.map((t) => t.audio_path))
+      if (removeError) {
+        setReleaseError(removeError.message)
+        return
+      }
+    }
+    const { error } = await supabase.from('releases').delete().eq('id', r.id)
+    if (error) {
+      setReleaseError(error.message)
+      return
+    }
+    loadAll(session.user.id)
+  }
+
+  // ----- Upload -----
+  function handleFileChange(releaseId, e) {
     const chosen = e.target.files[0] || null
-    setError('')
+    setUploadError((prev) => ({ ...prev, [releaseId]: '' }))
     if (chosen && chosen.size > MAX_UPLOAD_BYTES) {
-      setFile(null)
+      setFile((prev) => ({ ...prev, [releaseId]: null }))
       e.target.value = ''
-      setError(tooBigMessage(chosen.size))
+      setUploadError((prev) => ({ ...prev, [releaseId]: tooBigMessage(chosen.size) }))
       return
     }
-    setFile(chosen)
+    setFile((prev) => ({ ...prev, [releaseId]: chosen }))
   }
 
-  async function handleUpload(e) {
+  async function handleUpload(e, release) {
     e.preventDefault()
     const form = e.target
-    setError('')
-    if (!artistId) {
-      setError('Vælg en kunstner, eller opret en først.')
+    const releaseId = release.id
+    setUploadError((prev) => ({ ...prev, [releaseId]: '' }))
+    const titleValue = (title[releaseId] || '').trim()
+    const chosenFile = file[releaseId]
+    if (!titleValue || !chosenFile) {
+      setUploadError((prev) => ({ ...prev, [releaseId]: 'Angiv en titel og vælg en lydfil.' }))
       return
     }
-    if (!title.trim() || !file) {
-      setError('Angiv en titel og vælg en lydfil.')
+    if (chosenFile.size > MAX_UPLOAD_BYTES) {
+      setUploadError((prev) => ({ ...prev, [releaseId]: tooBigMessage(chosenFile.size) }))
       return
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setError(tooBigMessage(file.size))
+    if (tracksFor(releaseId).length >= RELEASE_TYPE_LIMITS[release.type]) {
+      setUploadError((prev) => ({
+        ...prev,
+        [releaseId]: `Denne ${RELEASE_TYPE_LABELS[release.type]} har nået grænsen på ${RELEASE_TYPE_LIMITS[release.type]} numre.`,
+      }))
       return
     }
-    setUploading(true)
-    const path = `${session.user.id}/${Date.now()}-${safeFileName(file.name)}`
-    const { error: uploadError } = await supabase.storage.from('tracks').upload(path, file)
-    if (uploadError) {
-      if (/maximum allowed size|too large|exceeded/i.test(uploadError.message)) {
-        setError(tooBigMessage(file.size))
-      } else {
-        setError(uploadError.message)
-      }
-      setUploading(false)
+    setUploading(releaseId)
+    const path = `${session.user.id}/${Date.now()}-${safeFileName(chosenFile.name)}`
+    const { error: uploadErr } = await supabase.storage.from('tracks').upload(path, chosenFile)
+    if (uploadErr) {
+      const message = /maximum allowed size|too large|exceeded/i.test(uploadErr.message)
+        ? tooBigMessage(chosenFile.size)
+        : uploadErr.message
+      setUploadError((prev) => ({ ...prev, [releaseId]: message }))
+      setUploading(null)
       return
     }
-    const color = COLORS[tracks.length % COLORS.length]
+    const color = COLORS[tracksFor(releaseId).length % COLORS.length]
     const { error: insertError } = await supabase.from('tracks').insert({
-      publisher_id: session.user.id,
-      artist_id: artistId,
-      title: title.trim(),
-      genre: genre.trim(),
+      release_id: releaseId,
+      // artist_id og publisher_id bliver sat automatisk ud fra udgivelsen
+      title: titleValue,
+      genre: (genre[releaseId] || '').trim(),
       audio_path: path,
       color,
     })
     if (insertError) {
       await supabase.storage.from('tracks').remove([path])
-      setError(insertError.message)
-      setUploading(false)
+      setUploadError((prev) => ({ ...prev, [releaseId]: insertError.message }))
+      setUploading(null)
       return
     }
-    setTitle('')
-    setGenre('')
-    setFile(null)
+    setTitle((prev) => ({ ...prev, [releaseId]: '' }))
+    setGenre((prev) => ({ ...prev, [releaseId]: '' }))
+    setFile((prev) => ({ ...prev, [releaseId]: null }))
     form.reset()
-    setUploading(false)
-    loadTracks(session.user.id)
+    setUploading(null)
+    loadAll(session.user.id)
   }
 
-  async function handleDelete(track) {
-    await supabase.storage.from('tracks').remove([track.audio_path])
-    await supabase.from('tracks').delete().eq('id', track.id)
-    loadTracks(session.user.id)
+  async function handleDeleteTrack(t) {
+    await supabase.storage.from('tracks').remove([t.audio_path])
+    await supabase.from('tracks').delete().eq('id', t.id)
+    loadAll(session.user.id)
   }
 
   if (session === undefined || (session && !profile)) return <p className="notice">Henter...</p>
@@ -250,27 +364,27 @@ export default function Dashboard() {
   if (!canPublish(profile.role)) {
     return (
       <section>
-        <h2>Mit kontor</h2>
+        <h2>Udgivelser</h2>
         <p className="notice" style={{ marginTop: 12 }}>
-          Du er logget ind som lytter. Kun publishers kan uploade musik. Opret en konto som publisher,
-          eller bed en admin om at ændre din rolle.
+          Du er logget ind som lytter. Kun publishers kan oprette kunstnere og udgive musik. Opret en
+          konto som publisher, eller bed en admin om at ændre din rolle.
         </p>
       </section>
     )
   }
 
-  const limitReached = artists.length >= MAX_ARTISTS
+  const artistLimitReached = artists.length >= MAX_ARTISTS
 
   return (
     <section>
-      <h2>Mit kontor — {profile.display_name}</h2>
+      <h2>Udgivelser — {profile.display_name}</h2>
 
       <div className="panel" style={{ marginTop: 20, marginBottom: 32 }}>
         <h3 style={{ fontSize: 16, marginBottom: 4 }}>
           Mine kunstnere ({artists.length} / {MAX_ARTISTS})
         </h3>
         <p className="notice" style={{ marginBottom: 16 }}>
-          Opret en kunstner for hver, du udgiver musik for. Numrene vises under kunstnerens navn.
+          Opret en kunstner for hver, du udgiver musik for.
         </p>
 
         {artists.length === 0 && (
@@ -278,18 +392,18 @@ export default function Dashboard() {
         )}
 
         {artists.map((a) =>
-          editingId === a.id ? (
+          editingArtistId === a.id ? (
             <div key={a.id} style={{ marginBottom: 16 }}>
               <div className="field">
                 <label>Navn</label>
-                <input maxLength={80} value={editName} onChange={(e) => setEditName(e.target.value)} />
+                <input maxLength={80} value={editArtistName} onChange={(e) => setEditArtistName(e.target.value)} />
               </div>
               <div className="field">
                 <label>Om kunstneren</label>
                 <textarea
                   maxLength={500}
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
+                  value={editArtistBio}
+                  onChange={(e) => setEditArtistBio(e.target.value)}
                   style={{ ...controlStyle, minHeight: 72, resize: 'vertical' }}
                 />
               </div>
@@ -297,7 +411,7 @@ export default function Dashboard() {
                 <button className="btn" type="button" onClick={() => saveArtist(a)}>
                   Gem ændringer
                 </button>
-                <button className="btn ghost" type="button" onClick={() => setEditingId(null)}>
+                <button className="btn ghost" type="button" onClick={() => setEditingArtistId(null)}>
                   Annuller
                 </button>
               </div>
@@ -307,12 +421,10 @@ export default function Dashboard() {
               <div className="ttitle">
                 <Link href={`/artist/${a.id}`}>{a.name}</Link>
                 {a.bio && <div className="notice">{a.bio}</div>}
-                <div className="notice">
-                  {tracks.filter((t) => t.artist_id === a.id).length} numre
-                </div>
+                <div className="notice">{releasesFor(a.id).length} udgivelser</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn ghost" type="button" onClick={() => startEdit(a)}>
+                <button className="btn ghost" type="button" onClick={() => startEditArtist(a)}>
                   Redigér
                 </button>
                 <button className="btn ghost" type="button" onClick={() => deleteArtist(a)}>
@@ -329,102 +441,198 @@ export default function Dashboard() {
             <label>Navn</label>
             <input
               maxLength={80}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              disabled={limitReached}
+              value={newArtistName}
+              onChange={(e) => setNewArtistName(e.target.value)}
+              disabled={artistLimitReached}
             />
           </div>
           <div className="field">
             <label>Om kunstneren (valgfrit)</label>
             <textarea
               maxLength={500}
-              value={newBio}
-              onChange={(e) => setNewBio(e.target.value)}
-              disabled={limitReached}
+              value={newArtistBio}
+              onChange={(e) => setNewArtistBio(e.target.value)}
+              disabled={artistLimitReached}
               style={{ ...controlStyle, minHeight: 72, resize: 'vertical' }}
             />
           </div>
-          {limitReached && (
+          {artistLimitReached && (
             <div className="error-msg">
               Du har nået grænsen på {MAX_ARTISTS} kunstnere. Slet en, hvis du vil oprette en ny.
             </div>
           )}
-          {artistError && <div className="error-msg">{artistError}</div>}
-          <button className="btn" type="submit" disabled={creating || limitReached}>
-            {creating ? 'Opretter...' : 'Opret kunstner'}
+          <Msg msg={artistError} />
+          <button className="btn" type="submit" disabled={creatingArtist || artistLimitReached}>
+            {creatingArtist ? 'Opretter...' : 'Opret kunstner'}
           </button>
         </form>
       </div>
 
-      <div className="panel" style={{ marginBottom: 32 }}>
-        <h3 style={{ fontSize: 16, marginBottom: 16 }}>Upload et nyt nummer</h3>
-        {artists.length === 0 ? (
-          <p className="notice">Opret en kunstner ovenfor, før du kan uploade et nummer.</p>
-        ) : (
-          <form onSubmit={handleUpload}>
-            <div className="field">
-              <label>Kunstner</label>
-              <select
-                value={artistId}
-                onChange={(e) => setArtistId(e.target.value)}
-                style={controlStyle}
-              >
-                {artists.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Titel</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Genre</label>
-              <input
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                placeholder="fx Ambient, Pop, Rock"
-              />
-            </div>
-            <div className="field">
-              <label>Lydfil</label>
-              <input type="file" accept="audio/*" onChange={handleFileChange} />
-              <div className="notice" style={{ marginTop: 6 }}>
-                Maks. {MAX_UPLOAD_MB} MB. MP3 og FLAC fylder langt mindre end WAV.
-              </div>
-            </div>
-            {error && <div className="error-msg">{error}</div>}
-            <button className="btn" type="submit" disabled={uploading}>
-              {uploading ? 'Uploader...' : 'Udgiv nummer'}
-            </button>
-          </form>
-        )}
-      </div>
+      {artists.length === 0 ? (
+        <p className="notice">Opret en kunstner ovenfor for at komme i gang med udgivelser.</p>
+      ) : (
+        artists.map((a) => {
+          const artistReleases = releasesFor(a.id)
+          return (
+            <div className="panel" key={a.id} style={{ marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, marginBottom: 4 }}>{a.name} — udgivelser</h3>
+              <p className="notice" style={{ marginBottom: 16 }}>
+                Et Album kan have op til {RELEASE_TYPE_LIMITS.album} numre, en EP op til{' '}
+                {RELEASE_TYPE_LIMITS.ep}, og en Single præcis {RELEASE_TYPE_LIMITS.single}.
+              </p>
 
-      <h3 style={{ fontSize: 16, marginBottom: 8 }}>Mine numre ({tracks.length})</h3>
-      {tracks.length === 0 && <p className="notice">Du har ikke uploadet noget endnu.</p>}
-      {artists
-        .filter((a) => tracks.some((t) => t.artist_id === a.id))
-        .map((a) => (
-          <div key={a.id} style={{ marginBottom: 16 }}>
-            <div className="notice" style={{ marginTop: 8 }}>{a.name}</div>
-            {tracks
-              .filter((t) => t.artist_id === a.id)
-              .map((t) => (
-                <div className="track-row" key={t.id}>
-                  <div className="ttitle">
-                    {t.title}
-                    <div className="notice">{t.genre}</div>
+              {artistReleases.length === 0 && (
+                <p className="notice" style={{ marginBottom: 16 }}>Ingen udgivelser endnu.</p>
+              )}
+
+              {artistReleases.map((r) => {
+                const releaseTracks = tracksFor(r.id)
+                const limit = RELEASE_TYPE_LIMITS[r.type]
+                const atLimit = releaseTracks.length >= limit
+                return (
+                  <div key={r.id} style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                    {editingReleaseId === r.id ? (
+                      <div>
+                        <div className="field">
+                          <label>Titel</label>
+                          <input
+                            maxLength={120}
+                            value={editReleaseTitle}
+                            onChange={(e) => setEditReleaseTitle(e.target.value)}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Type</label>
+                          <select
+                            style={controlStyle}
+                            value={editReleaseType}
+                            onChange={(e) => setEditReleaseType(e.target.value)}
+                          >
+                            {Object.entries(RELEASE_TYPE_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <Msg msg={releaseError} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn" type="button" onClick={() => saveRelease(r)}>
+                            Gem ændringer
+                          </button>
+                          <button className="btn ghost" type="button" onClick={() => setEditingReleaseId(null)}>
+                            Annuller
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="section-head">
+                        <div>
+                          <strong>{r.title}</strong>
+                          <span className="notice" style={{ marginLeft: 8 }}>
+                            {RELEASE_TYPE_LABELS[r.type]} · {releaseTracks.length}/{limit} numre
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn ghost" type="button" onClick={() => startEditRelease(r)}>
+                            Redigér
+                          </button>
+                          <button className="btn ghost" type="button" onClick={() => deleteRelease(r)}>
+                            Slet
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {releaseTracks.map((t) => (
+                      <div className="track-row" key={t.id}>
+                        <div className="ttitle">
+                          {t.title}
+                          <div className="notice">{t.genre}</div>
+                        </div>
+                        <button className="btn ghost" onClick={() => handleDeleteTrack(t)}>
+                          Slet
+                        </button>
+                      </div>
+                    ))}
+
+                    {editingReleaseId !== r.id && (
+                      <form onSubmit={(e) => handleUpload(e, r)} style={{ marginTop: 12 }}>
+                        <div className="field">
+                          <label>Titel på nummer</label>
+                          <input
+                            disabled={atLimit}
+                            value={title[r.id] || ''}
+                            onChange={(e) => setTitle((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Genre</label>
+                          <input
+                            disabled={atLimit}
+                            value={genre[r.id] || ''}
+                            onChange={(e) => setGenre((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                            placeholder="fx Ambient, Pop, Rock"
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Lydfil</label>
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            disabled={atLimit}
+                            onChange={(e) => handleFileChange(r.id, e)}
+                          />
+                          <div className="notice" style={{ marginTop: 6 }}>
+                            Maks. {MAX_UPLOAD_MB} MB. MP3 og FLAC fylder langt mindre end WAV.
+                          </div>
+                        </div>
+                        {atLimit && (
+                          <div className="error-msg">
+                            Denne {RELEASE_TYPE_LABELS[r.type]} har nået grænsen på {limit} numre.
+                          </div>
+                        )}
+                        <Msg msg={uploadError[r.id]} />
+                        <button className="btn" type="submit" disabled={atLimit || uploading === r.id}>
+                          {uploading === r.id ? 'Uploader...' : 'Tilføj nummer'}
+                        </button>
+                      </form>
+                    )}
                   </div>
-                  <button className="btn ghost" onClick={() => handleDelete(t)}>
-                    Slet
-                  </button>
+                )
+              })}
+
+              <form onSubmit={(e) => createRelease(e, a.id)} style={{ marginTop: 8 }}>
+                <h4 style={{ fontSize: 15, marginBottom: 12 }}>Opret ny udgivelse</h4>
+                <div className="field">
+                  <label>Titel</label>
+                  <input
+                    maxLength={120}
+                    value={releaseField(a.id, 'title', '')}
+                    onChange={(e) => setReleaseFieldValue(a.id, 'title', e.target.value)}
+                  />
                 </div>
-              ))}
-          </div>
-        ))}
+                <div className="field">
+                  <label>Type</label>
+                  <select
+                    style={controlStyle}
+                    value={releaseField(a.id, 'type', 'single')}
+                    onChange={(e) => setReleaseFieldValue(a.id, 'type', e.target.value)}
+                  >
+                    {Object.entries(RELEASE_TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label} (op til {RELEASE_TYPE_LIMITS[value]} numre)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Msg msg={releaseError} />
+                <button className="btn" type="submit" disabled={creatingReleaseFor === a.id}>
+                  {creatingReleaseFor === a.id ? 'Opretter...' : 'Opret udgivelse'}
+                </button>
+              </form>
+            </div>
+          )
+        })
+      )}
     </section>
   )
 }

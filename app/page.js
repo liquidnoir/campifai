@@ -4,10 +4,12 @@ import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
 export default function Home() {
+  const [session, setSession] = useState(undefined)
   const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
     loadTracks()
   }, [])
 
@@ -25,6 +27,12 @@ export default function Home() {
       <section className="hero">
         <h1>Musik, direkte fra kunstneren til dig.</h1>
         <p>Campifai er et sted hvor publishers lægger deres kunstneres musik op, og alle med en konto kan lytte gratis.</p>
+        {session === null && (
+          <p className="notice" style={{ marginTop: 8 }}>
+            Du kan gennemse kataloget herunder. <Link href="/login">Log ind</Link> eller{' '}
+            <Link href="/signup">opret en konto</Link> for at lytte.
+          </p>
+        )}
       </section>
       <section>
         <div className="section-head"><h2>Nye numre</h2></div>
