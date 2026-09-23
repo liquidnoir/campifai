@@ -1,11 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import { RELEASE_TYPE_LABELS } from '../../../lib/shared'
-
-// Hvor længe et afspilningslink er gyldigt (6 timer)
-const SIGNED_URL_SECONDS = 60 * 60 * 6
+import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
 
 export default function ArtistPage() {
   const { id } = useParams()
@@ -20,7 +18,7 @@ export default function ArtistPage() {
   async function loadArtist() {
     const { data: artistData } = await supabase
       .from('artists')
-      .select('id, name, bio, publisher_id, profiles ( display_name )')
+      .select('id, name, bio, image_path, publisher_id, profiles ( display_name )')
       .eq('id', id)
       .single()
     setArtist(artistData)
@@ -32,80 +30,77 @@ export default function ArtistPage() {
 
     const { data: releaseData } = await supabase
       .from('releases')
-      .select('*')
+      .select('*, tracks ( count )')
       .eq('artist_id', id)
       .order('created_at', { ascending: false })
-    const releaseList = releaseData || []
-
-    const { data: trackData } = await supabase
-      .from('tracks')
-      .select('*')
-      .eq('artist_id', id)
-      .order('created_at', { ascending: true })
-    const trackList = trackData || []
-
-    // Bucketten er privat, så vi henter midlertidige links til lydfilerne.
-    // Anonyme besøgende har ikke adgang til storage, så linkene bliver blot tomme for dem.
-    const urlByPath = {}
-    if (trackList.length > 0) {
-      const { data: signed } = await supabase.storage
-        .from('tracks')
-        .createSignedUrls(trackList.map((t) => t.audio_path), SIGNED_URL_SECONDS)
-      for (const s of signed || []) {
-        if (s.signedUrl) urlByPath[s.path] = s.signedUrl
-      }
-    }
-
-    setReleases(
-      releaseList.map((r) => ({
-        ...r,
-        tracks: trackList
-          .filter((t) => t.release_id === r.id)
-          .map((t) => ({ ...t, url: urlByPath[t.audio_path] || null })),
-      }))
-    )
+    setReleases(releaseData || [])
     setLoading(false)
   }
 
   if (loading) return <p className="notice">Henter...</p>
   if (!artist) return <p className="notice">Kunstner ikke fundet.</p>
 
+  const avatarUrl = imagePublicUrl(supabase, artist.image_path)
   const publisherName = artist.profiles?.display_name
-  const showPublisher =
-    publisherName && publisherName.trim().toLowerCase() !== artist.name.trim().toLowerCase()
+  const showPublisher = publisherName && publisherName.trim().toLowerCase() !== artist.name.trim().toLowerCase()
 
   return (
     <section>
-      <h2>{artist.name}</h2>
-      {showPublisher && (
-        <p className="notice" style={{ marginTop: 4 }}>Udgivet af {publisherName}</p>
-      )}
-      {artist.bio && <p className="notice" style={{ marginTop: 8 }}>{artist.bio}</p>}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: '50%',
+            flexShrink: 0,
+            background: avatarUrl ? undefined : '#4B5A3E',
+            backgroundImage: avatarUrl ? `url(${avatarUrl})` : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: 28,
+          }}
+        >
+          {!avatarUrl && artist.name.trim().charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <h2>{artist.name}</h2>
+          {showPublisher && <p className="notice" style={{ marginTop: 4 }}>Udgivet af {publisherName}</p>}
+        </div>
+      </div>
+      {artist.bio && <p className="notice" style={{ marginTop: 16 }}>{artist.bio}</p>}
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 28 }}>
         {releases.length === 0 && <p className="notice">Ingen udgivelser endnu.</p>}
-        {releases.map((r) => (
-          <div key={r.id} style={{ marginBottom: 28 }}>
-            <div className="section-head">
-              <h3 style={{ fontSize: 16 }}>{r.title}</h3>
-              <span className="notice">{RELEASE_TYPE_LABELS[r.type] || r.type}</span>
-            </div>
-            {r.tracks.length === 0 && <p className="notice">Ingen numre i denne udgivelse endnu.</p>}
-            {r.tracks.map((t) => (
-              <div className="track-row" key={t.id}>
-                <div className="ttitle">
-                  {t.title}
-                  <div className="notice">{t.genre}</div>
+        <div className="grid">
+          {releases.map((r) => {
+            const coverUrl = imagePublicUrl(supabase, r.cover_path)
+            return (
+              <Link href={`/release/${r.id}`} key={r.id} className="sleeve">
+                <div
+                  className="cover"
+                  style={{
+                    background: coverUrl ? undefined : r.color || '#B8452B',
+                    backgroundImage: coverUrl ? `url(${coverUrl})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                >
+                  {!coverUrl && <span className="title">{r.title}</span>}
                 </div>
-                {t.url ? (
-                  <audio controls preload="none" src={t.url} />
-                ) : (
-                  <span className="notice">Log ind for at lytte.</span>
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
+                <div className="meta">
+                  <div className="artist">{r.title}</div>
+                  <div className="sub">
+                    {RELEASE_TYPE_LABELS[r.type] || r.type} · {r.tracks?.[0]?.count ?? 0} numre
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </section>
   )

@@ -5,10 +5,16 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import {
   MAX_ARTISTS,
+  MAX_IMAGE_MB,
   RELEASE_TYPE_LABELS,
   RELEASE_TYPE_LIMITS,
   canPublish,
   controlStyle,
+  imagePublicUrl,
+  imageTooBigMessage,
+  removeImage,
+  safeFileName,
+  uploadImage,
 } from '../../lib/shared'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
@@ -23,25 +29,34 @@ function tooBigMessage(bytes) {
   return `Filen er ${mb} MB, og grænsen er ${MAX_UPLOAD_MB} MB. Gem den som MP3 eller FLAC, og vælg den igen.`
 }
 
-// Fjerner tegn, som lagringen ikke kan lide (mellemrum, æøå osv.)
-function safeFileName(name) {
-  const dot = name.lastIndexOf('.')
-  const base = dot > 0 ? name.slice(0, dot) : name
-  const ext = dot > 0 ? name.slice(dot) : ''
-  const cleanBase =
-    base
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9_-]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 80) || 'lyd'
-  const cleanExt = ext.replace(/[^a-zA-Z0-9.]/g, '').toLowerCase()
-  return cleanBase + cleanExt
-}
-
 function Msg({ msg }) {
   if (!msg) return null
   return <div className="error-msg">{msg}</div>
+}
+
+function ImagePicker({ label, currentUrl, onChange, disabled }) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        {currentUrl && (
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 8,
+              backgroundImage: `url(${currentUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <input type="file" accept="image/*" disabled={disabled} onChange={onChange} />
+      </div>
+      <div className="notice" style={{ marginTop: 4 }}>Maks. {MAX_IMAGE_MB} MB. Valgfrit.</div>
+    </div>
+  )
 }
 
 export default function Dashboard() {
@@ -55,22 +70,26 @@ export default function Dashboard() {
   // Kunstnere
   const [newArtistName, setNewArtistName] = useState('')
   const [newArtistBio, setNewArtistBio] = useState('')
+  const [newArtistImage, setNewArtistImage] = useState(null)
   const [artistError, setArtistError] = useState('')
   const [creatingArtist, setCreatingArtist] = useState(false)
   const [editingArtistId, setEditingArtistId] = useState(null)
   const [editArtistName, setEditArtistName] = useState('')
   const [editArtistBio, setEditArtistBio] = useState('')
+  const [editArtistImage, setEditArtistImage] = useState(null)
+  const [savingArtist, setSavingArtist] = useState(false)
 
-  // Ny udgivelse pr. kunstner (holdt i et map, så flere kunstnere kan udfyldes uafhængigt)
-  const [newRelease, setNewRelease] = useState({}) // { [artistId]: { title, type } }
+  // Ny udgivelse pr. kunstner
+  const [newRelease, setNewRelease] = useState({}) // { [artistId]: { title, type, image } }
   const [releaseError, setReleaseError] = useState('')
   const [creatingReleaseFor, setCreatingReleaseFor] = useState(null)
   const [editingReleaseId, setEditingReleaseId] = useState(null)
   const [editReleaseTitle, setEditReleaseTitle] = useState('')
   const [editReleaseType, setEditReleaseType] = useState('single')
+  const [editReleaseImage, setEditReleaseImage] = useState(null)
+  const [savingRelease, setSavingRelease] = useState(false)
 
-  // Upload
-  const [uploadReleaseId, setUploadReleaseId] = useState({}) // { [artistId]: releaseId }
+  // Upload af numre
   const [title, setTitle] = useState({})
   const [genre, setGenre] = useState({})
   const [file, setFile] = useState({})
@@ -116,6 +135,18 @@ export default function Dashboard() {
     return tracks.filter((t) => t.release_id === releaseId)
   }
 
+  function pickImage(setter, maxMb) {
+    return (e) => {
+      const chosen = e.target.files[0] || null
+      if (chosen && !chosen.type.startsWith('image/')) {
+        e.target.value = ''
+        setter(null)
+        return
+      }
+      setter(chosen)
+    }
+  }
+
   // ----- Kunstnere -----
   async function createArtist(e) {
     e.preventDefault()
@@ -130,17 +161,28 @@ export default function Dashboard() {
       return
     }
     setCreatingArtist(true)
-    const { error } = await supabase
-      .from('artists')
-      .insert({ publisher_id: session.user.id, name, bio: newArtistBio.trim() || null })
-    setCreatingArtist(false)
-    if (error) {
-      setArtistError(error.message)
-      return
+    try {
+      const { data: created, error } = await supabase
+        .from('artists')
+        .insert({ publisher_id: session.user.id, name, bio: newArtistBio.trim() || null })
+        .select()
+        .single()
+      if (error) throw error
+
+      if (newArtistImage) {
+        const path = await uploadImage(supabase, session.user.id, 'artist', newArtistImage)
+        const { error: updateError } = await supabase.from('artists').update({ image_path: path }).eq('id', created.id)
+        if (updateError) throw updateError
+      }
+
+      setNewArtistName('')
+      setNewArtistBio('')
+      setNewArtistImage(null)
+      loadAll(session.user.id)
+    } catch (err) {
+      setArtistError(err.message || 'Noget gik galt. Prøv igen.')
     }
-    setNewArtistName('')
-    setNewArtistBio('')
-    loadAll(session.user.id)
+    setCreatingArtist(false)
   }
 
   function startEditArtist(a) {
@@ -148,6 +190,7 @@ export default function Dashboard() {
     setEditingArtistId(a.id)
     setEditArtistName(a.name)
     setEditArtistBio(a.bio || '')
+    setEditArtistImage(null)
   }
 
   async function saveArtist(a) {
@@ -157,16 +200,24 @@ export default function Dashboard() {
       setArtistError('Navnet må ikke være tomt.')
       return
     }
-    const { error } = await supabase
-      .from('artists')
-      .update({ name, bio: editArtistBio.trim() || null })
-      .eq('id', a.id)
-    if (error) {
-      setArtistError(error.message)
-      return
+    setSavingArtist(true)
+    try {
+      const changes = { name, bio: editArtistBio.trim() || null }
+      if (editArtistImage) {
+        const path = await uploadImage(supabase, session.user.id, 'artist', editArtistImage)
+        changes.image_path = path
+      }
+      const { error } = await supabase.from('artists').update(changes).eq('id', a.id)
+      if (error) throw error
+      if (editArtistImage && a.image_path) {
+        await removeImage(supabase, a.image_path)
+      }
+      setEditingArtistId(null)
+      loadAll(session.user.id)
+    } catch (err) {
+      setArtistError(err.message || 'Noget gik galt. Prøv igen.')
     }
-    setEditingArtistId(null)
-    loadAll(session.user.id)
+    setSavingArtist(false)
   }
 
   async function deleteArtist(a) {
@@ -178,21 +229,24 @@ export default function Dashboard() {
         : `Slet ${a.name}? Det kan ikke fortrydes.`
     if (!window.confirm(question)) return
     setArtistError('')
-    if (ownTracks.length > 0) {
-      const { error: removeError } = await supabase.storage
-        .from('tracks')
-        .remove(ownTracks.map((t) => t.audio_path))
-      if (removeError) {
-        setArtistError(removeError.message)
-        return
+    try {
+      if (ownTracks.length > 0) {
+        const { error: removeError } = await supabase.storage
+          .from('tracks')
+          .remove(ownTracks.map((t) => t.audio_path))
+        if (removeError) throw removeError
       }
+      const coverPaths = ownReleases.map((r) => r.cover_path).filter(Boolean)
+      const imagePaths = [a.image_path, ...coverPaths].filter(Boolean)
+      if (imagePaths.length > 0) {
+        await supabase.storage.from('images').remove(imagePaths)
+      }
+      const { error } = await supabase.from('artists').delete().eq('id', a.id)
+      if (error) throw error
+      loadAll(session.user.id)
+    } catch (err) {
+      setArtistError(err.message || 'Noget gik galt. Prøv igen.')
     }
-    const { error } = await supabase.from('artists').delete().eq('id', a.id)
-    if (error) {
-      setArtistError(error.message)
-      return
-    }
-    loadAll(session.user.id)
   }
 
   // ----- Udgivelser -----
@@ -208,21 +262,32 @@ export default function Dashboard() {
     setReleaseError('')
     const titleValue = releaseField(artistId, 'title', '').trim()
     const type = releaseField(artistId, 'type', 'single')
+    const imageFile = releaseField(artistId, 'image', null)
     if (!titleValue) {
       setReleaseError('Angiv en titel til udgivelsen.')
       return
     }
     setCreatingReleaseFor(artistId)
-    const { error } = await supabase
-      .from('releases')
-      .insert({ publisher_id: session.user.id, artist_id: artistId, title: titleValue, type })
-    setCreatingReleaseFor(null)
-    if (error) {
-      setReleaseError(error.message)
-      return
+    try {
+      const { data: created, error } = await supabase
+        .from('releases')
+        .insert({ publisher_id: session.user.id, artist_id: artistId, title: titleValue, type })
+        .select()
+        .single()
+      if (error) throw error
+
+      if (imageFile) {
+        const path = await uploadImage(supabase, session.user.id, 'release', imageFile)
+        const { error: updateError } = await supabase.from('releases').update({ cover_path: path }).eq('id', created.id)
+        if (updateError) throw updateError
+      }
+
+      setNewRelease((prev) => ({ ...prev, [artistId]: { title: '', type: 'single', image: null } }))
+      loadAll(session.user.id)
+    } catch (err) {
+      setReleaseError(err.message || 'Noget gik galt. Prøv igen.')
     }
-    setNewRelease((prev) => ({ ...prev, [artistId]: { title: '', type: 'single' } }))
-    loadAll(session.user.id)
+    setCreatingReleaseFor(null)
   }
 
   function startEditRelease(r) {
@@ -230,6 +295,7 @@ export default function Dashboard() {
     setEditingReleaseId(r.id)
     setEditReleaseTitle(r.title)
     setEditReleaseType(r.type)
+    setEditReleaseImage(null)
   }
 
   async function saveRelease(r) {
@@ -246,16 +312,24 @@ export default function Dashboard() {
       )
       return
     }
-    const { error } = await supabase
-      .from('releases')
-      .update({ title: titleValue, type: editReleaseType })
-      .eq('id', r.id)
-    if (error) {
-      setReleaseError(error.message)
-      return
+    setSavingRelease(true)
+    try {
+      const changes = { title: titleValue, type: editReleaseType }
+      if (editReleaseImage) {
+        const path = await uploadImage(supabase, session.user.id, 'release', editReleaseImage)
+        changes.cover_path = path
+      }
+      const { error } = await supabase.from('releases').update(changes).eq('id', r.id)
+      if (error) throw error
+      if (editReleaseImage && r.cover_path) {
+        await removeImage(supabase, r.cover_path)
+      }
+      setEditingReleaseId(null)
+      loadAll(session.user.id)
+    } catch (err) {
+      setReleaseError(err.message || 'Noget gik galt. Prøv igen.')
     }
-    setEditingReleaseId(null)
-    loadAll(session.user.id)
+    setSavingRelease(false)
   }
 
   async function deleteRelease(r) {
@@ -266,24 +340,25 @@ export default function Dashboard() {
         : `Slet "${r.title}"? Det kan ikke fortrydes.`
     if (!window.confirm(question)) return
     setReleaseError('')
-    if (own.length > 0) {
-      const { error: removeError } = await supabase.storage
-        .from('tracks')
-        .remove(own.map((t) => t.audio_path))
-      if (removeError) {
-        setReleaseError(removeError.message)
-        return
+    try {
+      if (own.length > 0) {
+        const { error: removeError } = await supabase.storage
+          .from('tracks')
+          .remove(own.map((t) => t.audio_path))
+        if (removeError) throw removeError
       }
+      if (r.cover_path) {
+        await supabase.storage.from('images').remove([r.cover_path])
+      }
+      const { error } = await supabase.from('releases').delete().eq('id', r.id)
+      if (error) throw error
+      loadAll(session.user.id)
+    } catch (err) {
+      setReleaseError(err.message || 'Noget gik galt. Prøv igen.')
     }
-    const { error } = await supabase.from('releases').delete().eq('id', r.id)
-    if (error) {
-      setReleaseError(error.message)
-      return
-    }
-    loadAll(session.user.id)
   }
 
-  // ----- Upload -----
+  // ----- Upload af numre -----
   function handleFileChange(releaseId, e) {
     const chosen = e.target.files[0] || null
     setUploadError((prev) => ({ ...prev, [releaseId]: '' }))
@@ -407,9 +482,16 @@ export default function Dashboard() {
                   style={{ ...controlStyle, minHeight: 72, resize: 'vertical' }}
                 />
               </div>
+              <ImagePicker
+                label="Billede"
+                currentUrl={imagePublicUrl(supabase, a.image_path)}
+                onChange={pickImage(setEditArtistImage)}
+                disabled={savingArtist}
+              />
+              <Msg msg={artistError} />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn" type="button" onClick={() => saveArtist(a)}>
-                  Gem ændringer
+                <button className="btn" type="button" disabled={savingArtist} onClick={() => saveArtist(a)}>
+                  {savingArtist ? 'Gemmer...' : 'Gem ændringer'}
                 </button>
                 <button className="btn ghost" type="button" onClick={() => setEditingArtistId(null)}>
                   Annuller
@@ -418,10 +500,25 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="track-row" key={a.id}>
-              <div className="ttitle">
-                <Link href={`/artist/${a.id}`}>{a.name}</Link>
-                {a.bio && <div className="notice">{a.bio}</div>}
-                <div className="notice">{releasesFor(a.id).length} udgivelser</div>
+              <div className="ttitle" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {a.image_path && (
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      backgroundImage: `url(${imagePublicUrl(supabase, a.image_path)})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
+                )}
+                <div>
+                  <Link href={`/artist/${a.id}`}>{a.name}</Link>
+                  {a.bio && <div className="notice">{a.bio}</div>}
+                  <div className="notice">{releasesFor(a.id).length} udgivelser</div>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn ghost" type="button" onClick={() => startEditArtist(a)}>
@@ -456,6 +553,12 @@ export default function Dashboard() {
               style={{ ...controlStyle, minHeight: 72, resize: 'vertical' }}
             />
           </div>
+          <ImagePicker
+            label="Billede"
+            currentUrl={null}
+            onChange={pickImage(setNewArtistImage)}
+            disabled={artistLimitReached}
+          />
           {artistLimitReached && (
             <div className="error-msg">
               Du har nået grænsen på {MAX_ARTISTS} kunstnere. Slet en, hvis du vil oprette en ny.
@@ -513,10 +616,16 @@ export default function Dashboard() {
                             ))}
                           </select>
                         </div>
+                        <ImagePicker
+                          label="Cover art"
+                          currentUrl={imagePublicUrl(supabase, r.cover_path)}
+                          onChange={pickImage(setEditReleaseImage)}
+                          disabled={savingRelease}
+                        />
                         <Msg msg={releaseError} />
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button className="btn" type="button" onClick={() => saveRelease(r)}>
-                            Gem ændringer
+                          <button className="btn" type="button" disabled={savingRelease} onClick={() => saveRelease(r)}>
+                            {savingRelease ? 'Gemmer...' : 'Gem ændringer'}
                           </button>
                           <button className="btn ghost" type="button" onClick={() => setEditingReleaseId(null)}>
                             Annuller
@@ -525,11 +634,26 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="section-head">
-                        <div>
-                          <strong>{r.title}</strong>
-                          <span className="notice" style={{ marginLeft: 8 }}>
-                            {RELEASE_TYPE_LABELS[r.type]} · {releaseTracks.length}/{limit} numre
-                          </span>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          {r.cover_path && (
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 6,
+                                flexShrink: 0,
+                                backgroundImage: `url(${imagePublicUrl(supabase, r.cover_path)})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                              }}
+                            />
+                          )}
+                          <div>
+                            <Link href={`/release/${r.id}`}><strong>{r.title}</strong></Link>
+                            <span className="notice" style={{ marginLeft: 8 }}>
+                              {RELEASE_TYPE_LABELS[r.type]} · {releaseTracks.length}/{limit} numre
+                            </span>
+                          </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button className="btn ghost" type="button" onClick={() => startEditRelease(r)}>
@@ -624,6 +748,11 @@ export default function Dashboard() {
                     ))}
                   </select>
                 </div>
+                <ImagePicker
+                  label="Cover art"
+                  currentUrl={null}
+                  onChange={pickImage((f) => setReleaseFieldValue(a.id, 'image', f))}
+                />
                 <Msg msg={releaseError} />
                 <button className="btn" type="submit" disabled={creatingReleaseFor === a.id}>
                   {creatingReleaseFor === a.id ? 'Opretter...' : 'Opret udgivelse'}

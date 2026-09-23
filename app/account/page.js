@@ -2,7 +2,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import { MAX_ARTISTS, ROLE_LABELS, controlStyle, removeFolderFiles } from '../../lib/shared'
+import {
+  MAX_ARTISTS,
+  ROLE_LABELS,
+  controlStyle,
+  removeFolderFiles,
+  removeFolderImages,
+} from '../../lib/shared'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -101,8 +107,9 @@ export default function Account() {
     }
     setDeleting(true)
     try {
-      // 1. Slet alle lydfiler i din mappe (skal gøres før kontoen kan slettes)
+      // 1. Slet alle lyd- og billedfiler i din mappe (skal gøres før kontoen kan slettes)
       await removeFolderFiles(supabase, session.user.id)
+      await removeFolderImages(supabase, session.user.id)
 
       // 2. Slet kontoen (profil, kunstnere, udgivelser og numre forsvinder automatisk med)
       const { error: rpcError } = await supabase.rpc('delete_my_account')
@@ -206,7 +213,7 @@ export default function Account() {
           <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
           <p className="notice" style={{ marginBottom: 16 }}>
             Din konto og din profil
-            {isPublisher ? ', alle dine kunstnere, udgivelser, numre og lydfiler' : ''} slettes
+            {isPublisher ? ', alle dine kunstnere, udgivelser, numre og billeder' : ''} slettes
             permanent. Det kan ikke fortrydes.
           </p>
           <div className="field">

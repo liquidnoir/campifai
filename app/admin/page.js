@@ -3,7 +3,12 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import { ROLE_LABELS, controlStyle, removeFolderFiles } from '../../lib/shared'
+import {
+  ROLE_LABELS,
+  controlStyle,
+  removeFolderFiles,
+  removeFolderImages,
+} from '../../lib/shared'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -70,7 +75,9 @@ export default function AdminPage() {
   async function loadArtists() {
     const { data, error } = await supabase
       .from('artists')
-      .select('id, name, bio, publisher_id, created_at, profiles ( display_name ), releases ( count ), tracks ( count )')
+      .select(
+        'id, name, bio, image_path, publisher_id, created_at, profiles ( display_name ), releases ( id, cover_path ), tracks ( count )'
+      )
       .order('created_at', { ascending: false })
     if (error) {
       setMsg({ type: 'error', text: error.message })
@@ -137,6 +144,7 @@ export default function AdminPage() {
     setBusy(u.id)
     try {
       await removeFolderFiles(supabase, u.id)
+      await removeFolderImages(supabase, u.id)
       const { error } = await supabase.rpc('admin_delete_user', { target: u.id })
       if (error) throw error
       setMsg({ type: 'ok', text: `${u.display_name} er slettet.` })
@@ -189,7 +197,7 @@ export default function AdminPage() {
   async function deleteArtist(a) {
     setMsg(null)
     const trackCount = a.tracks?.[0]?.count ?? 0
-    const releaseCount = a.releases?.[0]?.count ?? 0
+    const releaseCount = a.releases?.length ?? 0
     const question =
       trackCount > 0
         ? `Slet ${a.name}, med ${releaseCount} udgivelser og ${trackCount} numre? Det kan ikke fortrydes.`
@@ -207,6 +215,12 @@ export default function AdminPage() {
           .from('tracks')
           .remove(own.map((t) => t.audio_path))
         if (removeError) throw removeError
+      }
+      const coverPaths = (a.releases || []).map((r) => r.cover_path).filter(Boolean)
+      const imagePaths = [a.image_path, ...coverPaths].filter(Boolean)
+      if (imagePaths.length > 0) {
+        const { error: imgError } = await supabase.storage.from('images').remove(imagePaths)
+        if (imgError) throw imgError
       }
       const { error } = await supabase.from('artists').delete().eq('id', a.id)
       if (error) throw error
@@ -364,7 +378,7 @@ export default function AdminPage() {
               </div>
               <div className="notice" style={{ marginTop: 8 }}>
                 Publisher: {a.profiles?.display_name || 'ukendt'} · oprettet {formatDate(a.created_at)} ·{' '}
-                {a.releases?.[0]?.count ?? 0} udgivelser · {a.tracks?.[0]?.count ?? 0} numre ·{' '}
+                {a.releases?.length ?? 0} udgivelser · {a.tracks?.[0]?.count ?? 0} numre ·{' '}
                 <Link href={`/artist/${a.id}`}>Se side</Link>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
