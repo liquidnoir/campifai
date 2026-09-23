@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
-import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../lib/shared'
+import { RELEASE_TYPE_LABELS, controlStyle, imagePublicUrl } from '../lib/shared'
 import HeroArt from '../components/HeroArt'
 import WaveDivider from '../components/WaveDivider'
 
@@ -54,11 +54,25 @@ function ArtistAvatar({ imageUrl, name }) {
   )
 }
 
+function ArtistRow({ artist }) {
+  return (
+    <Link
+      href={`/artist/${artist.id}`}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 4px', textDecoration: 'none', color: 'inherit' }}
+    >
+      <ArtistAvatar imageUrl={imagePublicUrl(supabase, artist.image_path)} name={artist.name} />
+      <span>{artist.name}</span>
+    </Link>
+  )
+}
+
 export default function Home() {
   const [session, setSession] = useState(undefined)
   const [releases, setReleases] = useState([])
   const [artists, setArtists] = useState([])
+  const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -66,26 +80,60 @@ export default function Home() {
   }, [])
 
   async function loadHome() {
-    const [releasesRes, artistsRes] = await Promise.all([
+    const [releasesRes, artistsRes, tracksRes] = await Promise.all([
       supabase
         .from('releases')
         .select('id, title, type, color, cover_path, artist_id, artists ( name )')
-        .order('created_at', { ascending: false })
-        .limit(24),
+        .order('created_at', { ascending: false }),
       supabase.from('artists').select('id, name, image_path').order('name', { ascending: true }),
+      supabase.from('tracks').select('id, title, genre, release_id'),
     ])
     if (!releasesRes.error && releasesRes.data) setReleases(releasesRes.data)
     if (!artistsRes.error && artistsRes.data) setArtists(artistsRes.data)
+    if (!tracksRes.error && tracksRes.data) setTracks(tracksRes.data)
     setLoading(false)
   }
+
+  const tracksByRelease = useMemo(() => {
+    const map = {}
+    for (const t of tracks) {
+      if (!map[t.release_id]) map[t.release_id] = []
+      map[t.release_id].push(t)
+    }
+    return map
+  }, [tracks])
+
+  const q = query.trim().toLowerCase()
+  const searching = q.length > 0
+
+  const filteredReleases = useMemo(() => {
+    if (!searching) return releases.slice(0, 24)
+    return releases.filter((r) => {
+      if (r.title.toLowerCase().includes(q)) return true
+      if ((r.artists?.name || '').toLowerCase().includes(q)) return true
+      const relTracks = tracksByRelease[r.id] || []
+      return relTracks.some(
+        (t) => t.title.toLowerCase().includes(q) || (t.genre || '').toLowerCase().includes(q)
+      )
+    })
+  }, [releases, tracksByRelease, q, searching])
+
+  const filteredArtists = useMemo(() => {
+    if (!searching) return artists
+    return artists.filter((a) => a.name.toLowerCase().includes(q))
+  }, [artists, q, searching])
 
   return (
     <div>
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-text">
-            <h1>Musik, direkte fra kunstneren til dig.</h1>
-            <p>Campifai er et sted hvor publishers lægger deres kunstneres musik op, og alle med en konto kan lytte gratis.</p>
+            <h1>Great ideas don&apos;t care about genres—or who made them.</h1>
+            <p>
+              Campifai is the curated sanctuary for AI-generated music that otherwise has no home. Listen
+              for free, discover groundbreaking sound, and help give these innovative works the stage they
+              deserve.
+            </p>
             {session === null && (
               <p className="notice" style={{ marginTop: 8 }}>
                 Du kan gennemse kataloget herunder. <Link href="/login">Log ind</Link> eller{' '}
@@ -102,14 +150,32 @@ export default function Home() {
         </div>
       </section>
 
+      <section style={{ paddingBottom: 0 }}>
+        <div className="field" style={{ maxWidth: 420, margin: 0 }}>
+          <label htmlFor="search">Søg</label>
+          <input
+            id="search"
+            style={controlStyle}
+            placeholder="Kunstner, sang, udgivelse eller genre"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </section>
+
       <section>
-        <div className="section-head"><h2>Nye udgivelser</h2></div>
+        <div className="section-head">
+          <h2>{searching ? 'Udgivelser' : 'Nye udgivelser'}</h2>
+        </div>
         {loading && <p className="notice">Henter musik...</p>}
-        {!loading && releases.length === 0 && (
+        {!loading && searching && filteredReleases.length === 0 && (
+          <p className="notice">Ingen udgivelser matcher "{query}".</p>
+        )}
+        {!loading && !searching && releases.length === 0 && (
           <p className="notice">Ingen udgivelser endnu. Opret en publisher-konto og vær den første til at udgive.</p>
         )}
         <div className="grid">
-          {releases.map((r) => (
+          {filteredReleases.map((r) => (
             <Link href={`/release/${r.id}`} key={r.id} className="sleeve">
               <CoverTile imageUrl={imagePublicUrl(supabase, r.cover_path)} color={r.color} label={r.title} />
               <div className="meta">
@@ -121,26 +187,17 @@ export default function Home() {
         </div>
       </section>
 
-      <section style={{ marginTop: 40 }}>
-        <div className="section-head"><h2>Alle kunstnere</h2></div>
-        {!loading && artists.length === 0 && <p className="notice">Ingen kunstnere endnu.</p>}
+      <section style={{ marginTop: searching ? 0 : 40 }}>
+        <div className="section-head">
+          <h2>{searching ? 'Kunstnere' : 'Alle kunstnere'}</h2>
+        </div>
+        {!loading && searching && filteredArtists.length === 0 && (
+          <p className="notice">Ingen kunstnere matcher "{query}".</p>
+        )}
+        {!loading && !searching && artists.length === 0 && <p className="notice">Ingen kunstnere endnu.</p>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {artists.map((a) => (
-            <Link
-              href={`/artist/${a.id}`}
-              key={a.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                padding: '10px 4px',
-                textDecoration: 'none',
-                color: 'inherit',
-              }}
-            >
-              <ArtistAvatar imageUrl={imagePublicUrl(supabase, a.image_path)} name={a.name} />
-              <span>{a.name}</span>
-            </Link>
+          {filteredArtists.map((a) => (
+            <ArtistRow artist={a} key={a.id} />
           ))}
         </div>
       </section>
