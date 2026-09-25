@@ -1,22 +1,33 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
+import ShareButton from '../../../components/ShareButton'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
 
-export default function ReleasePage() {
+function ReleaseContent() {
   const { id } = useParams()
+  const searchParams = useSearchParams()
+  const highlightId = searchParams.get('t')
   const [release, setRelease] = useState(null)
   const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
+  const countedRef = useRef(new Set())
+  const highlightRef = useRef(null)
 
   useEffect(() => {
     if (id) loadRelease()
   }, [id])
+
+  useEffect(() => {
+    if (!loading && highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [loading, highlightId])
 
   async function loadRelease() {
     const { data: releaseData } = await supabase
@@ -54,6 +65,16 @@ export default function ReleasePage() {
     setLoading(false)
   }
 
+  async function handlePlay(trackId) {
+    if (countedRef.current.has(trackId)) return
+    countedRef.current.add(trackId)
+    try {
+      await supabase.rpc('increment_play_count', { track_id: trackId })
+    } catch {
+      // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
+    }
+  }
+
   if (loading) return <p className="notice">Henter...</p>
   if (!release) return <p className="notice">Udgivelse ikke fundet.</p>
 
@@ -79,32 +100,55 @@ export default function ReleasePage() {
         >
           {!coverUrl && <span className="title">{release.title}</span>}
         </div>
-        <div>
-          <div className="notice">{RELEASE_TYPE_LABELS[release.type] || release.type}</div>
-          <h2 style={{ marginTop: 4 }}>{release.title}</h2>
-          <p className="notice" style={{ marginTop: 4 }}>
-            <Link href={`/artist/${release.artist_id}`}>{artistName || 'Ukendt kunstner'}</Link>
-            {showPublisher && <> · Udgivet af {publisherName}</>}
-          </p>
+        <div style={{ flex: '1 1 200px' }}>
+          <div className="section-head" style={{ marginBottom: 0 }}>
+            <div>
+              <div className="notice">{RELEASE_TYPE_LABELS[release.type] || release.type}</div>
+              <h2 style={{ marginTop: 4 }}>{release.title}</h2>
+              <p className="notice" style={{ marginTop: 4 }}>
+                <Link href={`/artist/${release.artist_id}`}>{artistName || 'Ukendt kunstner'}</Link>
+                {showPublisher && <> · Udgivet af {publisherName}</>}
+              </p>
+            </div>
+            <ShareButton path={`/release/${release.id}`} title={`${release.title} — ${artistName || ''}`} label="Del udgivelse" />
+          </div>
         </div>
       </div>
 
       <div style={{ marginTop: 28 }}>
         {tracks.length === 0 && <p className="notice">Ingen numre i denne udgivelse endnu.</p>}
         {tracks.map((t) => (
-          <div className="track-row" key={t.id}>
+          <div
+            className="track-row"
+            key={t.id}
+            ref={t.id === highlightId ? highlightRef : null}
+            style={t.id === highlightId ? { background: 'var(--surface)', borderRadius: 4 } : undefined}
+          >
             <div className="ttitle">
               {t.title}
               <div className="notice">{t.genre}</div>
             </div>
             {t.url ? (
-              <audio controls preload="none" src={t.url} />
+              <audio controls preload="none" src={t.url} onPlay={() => handlePlay(t.id)} />
             ) : (
               <span className="notice">Log ind for at lytte.</span>
             )}
+            <ShareButton
+              path={`/release/${release.id}?t=${t.id}`}
+              title={`${t.title} — ${artistName || ''}`}
+              label="Del"
+            />
           </div>
         ))}
       </div>
     </section>
+  )
+}
+
+export default function ReleasePage() {
+  return (
+    <Suspense fallback={<p className="notice">Henter...</p>}>
+      <ReleaseContent />
+    </Suspense>
   )
 }

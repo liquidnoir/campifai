@@ -71,6 +71,7 @@ export default function Home() {
   const [releases, setReleases] = useState([])
   const [artists, setArtists] = useState([])
   const [tracks, setTracks] = useState([])
+  const [topTracks, setTopTracks] = useState([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
 
@@ -80,17 +81,24 @@ export default function Home() {
   }, [])
 
   async function loadHome() {
-    const [releasesRes, artistsRes, tracksRes] = await Promise.all([
+    const [releasesRes, artistsRes, tracksRes, topTracksRes] = await Promise.all([
       supabase
         .from('releases')
         .select('id, title, type, color, cover_path, artist_id, artists ( name )')
         .order('created_at', { ascending: false }),
       supabase.from('artists').select('id, name, image_path').order('name', { ascending: true }),
       supabase.from('tracks').select('id, title, genre, release_id'),
+      supabase
+        .from('tracks')
+        .select('id, title, play_count, release_id, releases ( title, artist_id, artists ( name ) )')
+        .gt('play_count', 0)
+        .order('play_count', { ascending: false })
+        .limit(10),
     ])
     if (!releasesRes.error && releasesRes.data) setReleases(releasesRes.data)
     if (!artistsRes.error && artistsRes.data) setArtists(artistsRes.data)
     if (!tracksRes.error && tracksRes.data) setTracks(tracksRes.data)
+    if (!topTracksRes.error && topTracksRes.data) setTopTracks(topTracksRes.data)
     setLoading(false)
   }
 
@@ -186,6 +194,33 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {!searching && topTracks.length > 0 && (
+        <section style={{ marginTop: 8 }}>
+          <div className="section-head"><h2>Mest spillede numre</h2></div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {topTracks.map((t, i) => (
+              <Link
+                href={`/release/${t.release_id}?t=${t.id}`}
+                key={t.id}
+                className="track-row"
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className="notice" style={{ width: 20, flexShrink: 0, textAlign: 'right' }}>{i + 1}</div>
+                <div className="ttitle">
+                  {t.title}
+                  <div className="notice">
+                    {t.releases?.artists?.name || 'Ukendt kunstner'} · {t.releases?.title}
+                  </div>
+                </div>
+                <div className="notice" style={{ flexShrink: 0 }}>
+                  {t.play_count} {t.play_count === 1 ? 'afspilning' : 'afspilninger'}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section style={{ marginTop: searching ? 0 : 40 }}>
         <div className="section-head">

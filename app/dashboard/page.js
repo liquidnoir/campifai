@@ -755,7 +755,12 @@ export default function Dashboard() {
                     </div>
                     <div className="field">
                       <label>Lydfil</label>
-                      <input type="file" accept="audio/*" disabled={atLimit} onChange={handleNewTrackFile} />
+                      <input
+                        type="file"
+                        accept=".mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,audio/*"
+                        disabled={atLimit}
+                        onChange={handleNewTrackFile}
+                      />
                       <div className="notice" style={{ marginTop: 6 }}>
                         Maks. {MAX_UPLOAD_MB} MB. MP3 og FLAC fylder langt mindre end WAV.
                       </div>
