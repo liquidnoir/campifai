@@ -6,6 +6,15 @@ import { LanguageProvider } from '../components/LanguageProvider'
 export const metadata = {
   title: 'Campifai',
   description: 'Music straight from the artist to you',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Campifai',
+  },
+}
+
+export const viewport = {
+  themeColor: '#161310',
 }
 
 export default function RootLayout({ children }) {
@@ -18,6 +27,7 @@ export default function RootLayout({ children }) {
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Space+Grotesk:wght@400;500&display=swap"
           rel="stylesheet"
         />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>
         <LanguageProvider>
