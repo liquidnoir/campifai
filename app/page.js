@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabase'
 import { controlStyle, imagePublicUrl } from '../lib/shared'
 import { collectionTitle } from '../lib/collections'
 import { useLanguage } from '../components/LanguageProvider'
-import HeroArt from '../components/HeroArt'
 
 function CoverTile({ imageUrl, color, label }) {
   if (imageUrl) {
@@ -156,7 +155,11 @@ export default function Home() {
             )}
           </div>
           <div className="hero-art">
-            <HeroArt />
+            <img
+              src="/hero-mushrooms.jpg"
+              alt=""
+              style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 3 }}
+            />
           </div>
         </div>
       </section>
