@@ -59,22 +59,51 @@ export default function CollectionDetailPage() {
       return
     }
     setSearching(true)
-    const [byTitle, byArtist] = await Promise.all([
-      supabase
+    setMsg(null)
+
+    const byTitleRes = await supabase
+      .from('releases')
+      .select('id, title, type, artist_id, artists ( name )')
+      .ilike('title', `%${q}%`)
+      .limit(25)
+
+    if (byTitleRes.error) {
+      setSearching(false)
+      setMsg({ type: 'error', text: byTitleRes.error.message })
+      return
+    }
+
+    // Kunstnernavn slås op i to trin (i stedet for et filter på et indlejret
+    // felt, som er skrøbeligt) for at finde udgivelser via kunstnerens navn.
+    const artistRes = await supabase.from('artists').select('id').ilike('name', `%${q}%`).limit(25)
+    let byArtist = []
+    if (artistRes.error) {
+      setSearching(false)
+      setMsg({ type: 'error', text: artistRes.error.message })
+      return
+    }
+    if (artistRes.data && artistRes.data.length > 0) {
+      const releasesByArtistRes = await supabase
         .from('releases')
         .select('id, title, type, artist_id, artists ( name )')
-        .ilike('title', `%${q}%`)
-        .limit(25),
-      supabase
-        .from('releases')
-        .select('id, title, type, artist_id, artists!inner ( name )')
-        .ilike('artists.name', `%${q}%`)
-        .limit(25),
-    ])
+        .in('artist_id', artistRes.data.map((a) => a.id))
+        .limit(25)
+      if (releasesByArtistRes.error) {
+        setSearching(false)
+        setMsg({ type: 'error', text: releasesByArtistRes.error.message })
+        return
+      }
+      byArtist = releasesByArtistRes.data || []
+    }
+
     setSearching(false)
-    const merged = [...(byTitle.data || []), ...(byArtist.data || [])]
+    const merged = [...(byTitleRes.data || []), ...byArtist]
     const byId = new Map(merged.map((r) => [r.id, r]))
-    setResults([...byId.values()])
+    const combined = [...byId.values()]
+    setResults(combined)
+    if (combined.length === 0) {
+      setMsg({ type: 'ok', text: `Ingen udgivelser matcher "${q}".` })
+    }
   }
 
   async function addRelease(release) {
