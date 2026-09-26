@@ -4,9 +4,12 @@ import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
+import { hasReleaseAccess } from '../../../lib/purchases'
+import { downloadReleaseZip } from '../../../lib/zipDownload'
 import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 import QueuePlayer from '../../../components/QueuePlayer'
+import PurchaseGate from '../../../components/PurchaseGate'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -19,6 +22,8 @@ function ReleaseContent() {
   const [release, setRelease] = useState(null)
   const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [hasAccess, setHasAccess] = useState(null) // null = tjekker, true/false = kendt
+  const [download, setDownload] = useState({ busy: false, progress: null, error: null })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -27,6 +32,12 @@ function ReleaseContent() {
   useEffect(() => {
     if (id) loadRelease()
   }, [id])
+
+  useEffect(() => {
+    if (session === undefined || !release) return
+    checkAccess()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, release])
 
   async function loadRelease() {
     const { data: releaseData } = await supabase
@@ -66,11 +77,36 @@ function ReleaseContent() {
     setLoading(false)
   }
 
+  async function checkAccess() {
+    if (!session) {
+      setHasAccess(false)
+      return
+    }
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
+    const admin = profile?.role === 'admin'
+    const access = await hasReleaseAccess(supabase, { userId: session.user.id, isAdmin: admin, release })
+    setHasAccess(access)
+  }
+
   async function handleTrackStart(t) {
     try {
       await supabase.rpc('increment_play_count', { track_id: t.id })
     } catch {
       // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
+    }
+  }
+
+  async function handleDownload() {
+    setDownload({ busy: true, progress: null, error: null })
+    try {
+      const playable = tracks.filter((t) => t.url)
+      if (playable.length === 0) throw new Error('Ingen numre at downloade.')
+      await downloadReleaseZip(release, playable, (current, total) => {
+        setDownload({ busy: true, progress: { current, total }, error: null })
+      })
+      setDownload({ busy: false, progress: null, error: null })
+    } catch (err) {
+      setDownload({ busy: false, progress: null, error: err.message || 'Download fejlede. Prøv igen.' })
     }
   }
 
@@ -127,7 +163,31 @@ function ReleaseContent() {
         </div>
       </div>
 
-      <div style={{ marginTop: 28 }}>
+      {canInteract && (
+        <div style={{ marginTop: 20 }}>
+          <PurchaseGate
+            scope="release"
+            releaseId={release.id}
+            itemLabel={`"${release.title}"`}
+            hasAccess={hasAccess}
+            onGranted={checkAccess}
+          />
+          {hasAccess === true && (
+            <div style={{ marginBottom: 20 }}>
+              <button className="btn ghost" type="button" disabled={download.busy} onClick={handleDownload}>
+                {download.busy
+                  ? download.progress
+                    ? `Henter ${download.progress.current}/${download.progress.total}...`
+                    : 'Forbereder...'
+                  : 'Download (zip)'}
+              </button>
+              {download.error && <div className="error-msg">{download.error}</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginTop: 8 }}>
         {tracks.length === 0 && <p className="notice">Ingen numre i denne udgivelse endnu.</p>}
         {tracks.length > 0 && canInteract && (
           <QueuePlayer

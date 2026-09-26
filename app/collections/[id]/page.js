@@ -2,46 +2,24 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import JSZip from 'jszip'
 import { supabase } from '../../../lib/supabase'
 import { collectionTitle } from '../../../lib/collections'
+import { hasReleaseAccess, hasCollectionAccess } from '../../../lib/purchases'
+import { downloadReleaseZip } from '../../../lib/zipDownload'
+import PurchaseGate from '../../../components/PurchaseGate'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
 
-function safeFileNamePart(name) {
-  return name.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 80) || 'fil'
-}
-
-async function downloadReleaseZip(release, tracks, onProgress) {
-  const zip = new JSZip()
-  for (let i = 0; i < tracks.length; i++) {
-    const t = tracks[i]
-    onProgress?.(i + 1, tracks.length)
-    const res = await fetch(t.url)
-    if (!res.ok) throw new Error(`Kunne ikke hente "${t.title}".`)
-    const blob = await res.blob()
-    const ext = (t.audio_path.split('.').pop() || 'audio').toLowerCase()
-    const filename = `${String(i + 1).padStart(2, '0')} - ${safeFileNamePart(t.title)}.${ext}`
-    zip.file(filename, blob)
-  }
-  const blob = await zip.generateAsync({ type: 'blob' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${safeFileNamePart(release.title)}.zip`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
-
 export default function CollectionPage() {
   const { id } = useParams()
   const [session, setSession] = useState(undefined)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [collection, setCollection] = useState(null)
   const [releases, setReleases] = useState([])
   const [loading, setLoading] = useState(true)
+  const [collectionAccess, setCollectionAccess] = useState(null) // null/true/false
+  const [releaseAccess, setReleaseAccess] = useState({}) // { [releaseId]: true/false }
   const [downloadState, setDownloadState] = useState({}) // { [releaseId]: { busy, progress, error } }
 
   useEffect(() => {
@@ -51,6 +29,12 @@ export default function CollectionPage() {
   useEffect(() => {
     if (id) load()
   }, [id])
+
+  useEffect(() => {
+    if (session === undefined || releases.length === 0) return
+    checkAllAccess()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, releases])
 
   async function load() {
     const { data: collectionData } = await supabase.from('collections').select('*').eq('id', id).single()
@@ -63,11 +47,33 @@ export default function CollectionPage() {
 
     const { data: crData } = await supabase
       .from('collection_releases')
-      .select('release_id, releases ( id, title, type, artist_id, artists ( name ), tracks ( count ) )')
+      .select('release_id, releases ( id, title, type, artist_id, publisher_id, artists ( name ), tracks ( count ) )')
       .eq('collection_id', id)
       .order('added_at', { ascending: true })
     setReleases((crData || []).map((r) => r.releases).filter(Boolean))
     setLoading(false)
+  }
+
+  async function checkAllAccess() {
+    if (!session) {
+      setCollectionAccess(false)
+      setReleaseAccess(Object.fromEntries(releases.map((r) => [r.id, false])))
+      return
+    }
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
+    const admin = profile?.role === 'admin'
+    setIsAdmin(admin)
+
+    const collAccess = await hasCollectionAccess(supabase, { userId: session.user.id, isAdmin: admin, collectionId: id })
+    setCollectionAccess(collAccess)
+
+    const entries = await Promise.all(
+      releases.map(async (r) => [
+        r.id,
+        await hasReleaseAccess(supabase, { userId: session.user.id, isAdmin: admin, release: r }),
+      ])
+    )
+    setReleaseAccess(Object.fromEntries(entries))
   }
 
   async function handleDownload(release) {
@@ -108,7 +114,7 @@ export default function CollectionPage() {
   if (loading) return <p className="notice">Henter...</p>
   if (!collection) return <p className="notice">Kollektionen findes ikke.</p>
 
-  const canDownload = Boolean(session)
+  const canInteract = Boolean(session)
 
   return (
     <section>
@@ -117,9 +123,25 @@ export default function CollectionPage() {
         {releases.length} {releases.length === 1 ? 'udgivelse' : 'udgivelser'} i denne kollektion.
       </p>
 
+      {canInteract && (
+        <PurchaseGate
+          scope="collection"
+          collectionId={collection.id}
+          itemLabel="hele kollektionen"
+          hasAccess={collectionAccess}
+          onGranted={checkAllAccess}
+        />
+      )}
+      {collectionAccess === true && (
+        <p className="notice" style={{ marginBottom: 20 }}>
+          Du har adgang til hele kollektionen — download de enkelte udgivelser nedenfor.
+        </p>
+      )}
+
       {releases.length === 0 && <p className="notice">Ingen udgivelser i denne kollektion endnu.</p>}
       {releases.map((r) => {
         const state = downloadState[r.id] || {}
+        const access = releaseAccess[r.id]
         return (
           <div className="track-row" key={r.id}>
             <div className="ttitle">
@@ -130,7 +152,9 @@ export default function CollectionPage() {
               </div>
               {state.error && <div className="error-msg">{state.error}</div>}
             </div>
-            {canDownload ? (
+            {!canInteract ? (
+              <Link href="/login" className="btn ghost">Log ind</Link>
+            ) : access ? (
               <button className="btn ghost" type="button" disabled={state.busy} onClick={() => handleDownload(r)}>
                 {state.busy
                   ? state.progress
@@ -139,7 +163,7 @@ export default function CollectionPage() {
                   : 'Download (zip)'}
               </button>
             ) : (
-              <Link href="/login" className="btn ghost">Log ind for at downloade</Link>
+              <Link href={`/release/${r.id}`} className="btn ghost">Køb denne udgivelse</Link>
             )}
           </div>
         )
