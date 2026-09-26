@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
-import { RELEASE_TYPE_LABELS, controlStyle, imagePublicUrl } from '../lib/shared'
+import { controlStyle, imagePublicUrl } from '../lib/shared'
 import { collectionTitle } from '../lib/collections'
+import { useLanguage } from '../components/LanguageProvider'
 import HeroArt from '../components/HeroArt'
 import WaveDivider from '../components/WaveDivider'
 
@@ -68,6 +69,7 @@ function ArtistRow({ artist }) {
 }
 
 export default function Home() {
+  const { t } = useLanguage()
   const [session, setSession] = useState(undefined)
   const [releases, setReleases] = useState([])
   const [artists, setArtists] = useState([])
@@ -113,9 +115,9 @@ export default function Home() {
 
   const tracksByRelease = useMemo(() => {
     const map = {}
-    for (const t of tracks) {
-      if (!map[t.release_id]) map[t.release_id] = []
-      map[t.release_id].push(t)
+    for (const tr of tracks) {
+      if (!map[tr.release_id]) map[tr.release_id] = []
+      map[tr.release_id].push(tr)
     }
     return map
   }, [tracks])
@@ -130,7 +132,7 @@ export default function Home() {
       if ((r.artists?.name || '').toLowerCase().includes(q)) return true
       if ((r.genre || '').toLowerCase().includes(q)) return true
       const relTracks = tracksByRelease[r.id] || []
-      return relTracks.some((t) => t.title.toLowerCase().includes(q))
+      return relTracks.some((tr) => tr.title.toLowerCase().includes(q))
     })
   }, [releases, tracksByRelease, q, searching])
 
@@ -144,16 +146,13 @@ export default function Home() {
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-text">
-            <h1>Great ideas don&apos;t care about genres—or who made them.</h1>
-            <p>
-              Campifai is the curated sanctuary for AI-generated music that otherwise has no home. Listen
-              for free, discover groundbreaking sound, and help give these innovative works the stage they
-              deserve.
-            </p>
+            <h1>{t('home.hero.title')}</h1>
+            <p>{t('home.hero.body')}</p>
             {session === null && (
               <p className="notice" style={{ marginTop: 8 }}>
-                Du kan gennemse kataloget herunder. <Link href="/login">Log ind</Link> eller{' '}
-                <Link href="/signup">opret en konto</Link> for at lytte.
+                {t('home.hero.guestNotice.pre')} <Link href="/login">{t('home.hero.guestLogin')}</Link>{' '}
+                {t('home.hero.guestNotice.or')} <Link href="/signup">{t('home.hero.guestSignup')}</Link>{' '}
+                {t('home.hero.guestNotice.post')}
               </p>
             )}
           </div>
@@ -168,11 +167,11 @@ export default function Home() {
 
       <section style={{ paddingBottom: 0 }}>
         <div className="field" style={{ maxWidth: 420, margin: 0 }}>
-          <label htmlFor="search">Søg</label>
+          <label htmlFor="search">{t('home.search.label')}</label>
           <input
             id="search"
             style={controlStyle}
-            placeholder="Kunstner, sang, udgivelse eller genre"
+            placeholder={t('home.search.placeholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -181,23 +180,23 @@ export default function Home() {
 
       <section>
         <div className="section-head">
-          <h2>{searching ? 'Udgivelser' : 'Nye udgivelser'}</h2>
+          <h2>{searching ? t('home.releases.title') : t('home.releases.newTitle')}</h2>
         </div>
-        {loading && <p className="notice">Henter musik...</p>}
+        {loading && <p className="notice">{t('common.loading')}</p>}
         {!loading && searching && filteredReleases.length === 0 && (
-          <p className="notice">Ingen udgivelser matcher "{query}".</p>
+          <p className="notice">{t('home.releases.noMatch', { query })}</p>
         )}
         {!loading && !searching && releases.length === 0 && (
-          <p className="notice">Ingen udgivelser endnu. Opret en publisher-konto og vær den første til at udgive.</p>
+          <p className="notice">{t('home.releases.empty')}</p>
         )}
         <div className="grid">
           {filteredReleases.map((r) => (
             <Link href={`/release/${r.id}`} key={r.id} className="sleeve">
               <CoverTile imageUrl={imagePublicUrl(supabase, r.cover_path)} color={r.color} label={r.title} />
               <div className="meta">
-                <div className="artist">{r.artists?.name || 'Ukendt kunstner'}</div>
+                <div className="artist">{r.artists?.name || t('home.unknownArtist')}</div>
                 <div className="sub">
-                  {r.title} · {RELEASE_TYPE_LABELS[r.type] || r.type}
+                  {r.title} · {t(`type.${r.type}`) || r.type}
                   {r.genre ? ` · ${r.genre}` : ''}
                 </div>
               </div>
@@ -208,24 +207,26 @@ export default function Home() {
 
       {!searching && topTracks.length > 0 && (
         <section style={{ marginTop: 8 }}>
-          <div className="section-head"><h2>Mest spillede numre</h2></div>
+          <div className="section-head"><h2>{t('home.topTracks.title')}</h2></div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {topTracks.map((t, i) => (
+            {topTracks.map((tr, i) => (
               <Link
-                href={`/release/${t.release_id}?t=${t.id}`}
-                key={t.id}
+                href={`/release/${tr.release_id}?t=${tr.id}`}
+                key={tr.id}
                 className="track-row"
                 style={{ textDecoration: 'none', color: 'inherit' }}
               >
                 <div className="notice" style={{ width: 20, flexShrink: 0, textAlign: 'right' }}>{i + 1}</div>
                 <div className="ttitle">
-                  {t.title}
+                  {tr.title}
                   <div className="notice">
-                    {t.releases?.artists?.name || 'Ukendt kunstner'} · {t.releases?.title}
+                    {tr.releases?.artists?.name || t('home.unknownArtist')} · {tr.releases?.title}
                   </div>
                 </div>
                 <div className="notice" style={{ flexShrink: 0 }}>
-                  {t.play_count} {t.play_count === 1 ? 'afspilning' : 'afspilninger'}
+                  {t(tr.play_count === 1 ? 'home.topTracks.play_one' : 'home.topTracks.play_other', {
+                    count: tr.play_count,
+                  })}
                 </div>
               </Link>
             ))}
@@ -235,7 +236,7 @@ export default function Home() {
 
       {!searching && collections.length > 0 && (
         <section style={{ marginTop: 8 }}>
-          <div className="section-head"><h2>Kollektioner</h2></div>
+          <div className="section-head"><h2>{t('home.collections.title')}</h2></div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {collections.map((c) => (
               <Link
@@ -245,9 +246,9 @@ export default function Home() {
                 style={{ textDecoration: 'none', color: 'inherit' }}
               >
                 <div className="ttitle">
-                  {collectionTitle(c)}
+                  {collectionTitle(c, t)}
                   <div className="notice">
-                    {c.collection_releases?.[0]?.count ?? 0} udgivelser
+                    {t('home.collections.releaseCount', { count: c.collection_releases?.[0]?.count ?? 0 })}
                   </div>
                 </div>
               </Link>
@@ -258,12 +259,12 @@ export default function Home() {
 
       <section style={{ marginTop: searching ? 0 : 40 }}>
         <div className="section-head">
-          <h2>{searching ? 'Kunstnere' : 'Alle kunstnere'}</h2>
+          <h2>{searching ? t('home.artists.title') : t('home.artists.allTitle')}</h2>
         </div>
         {!loading && searching && filteredArtists.length === 0 && (
-          <p className="notice">Ingen kunstnere matcher "{query}".</p>
+          <p className="notice">{t('home.artists.noMatch', { query })}</p>
         )}
-        {!loading && !searching && artists.length === 0 && <p className="notice">Ingen kunstnere endnu.</p>}
+        {!loading && !searching && artists.length === 0 && <p className="notice">{t('home.artists.empty')}</p>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {filteredArtists.map((a) => (
             <ArtistRow artist={a} key={a.id} />

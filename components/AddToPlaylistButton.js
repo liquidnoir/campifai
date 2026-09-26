@@ -1,8 +1,10 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useLanguage } from './LanguageProvider'
 
 export default function AddToPlaylistButton({ trackId }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [playlists, setPlaylists] = useState(null) // null = ikke hentet endnu
   const [loading, setLoading] = useState(false)
@@ -33,9 +35,9 @@ export default function AddToPlaylistButton({ trackId }) {
   async function addTo(playlistId) {
     const { error } = await supabase.from('playlist_tracks').insert({ playlist_id: playlistId, track_id: trackId })
     if (error) {
-      setFeedback(error.code === '23505' ? 'Ligger allerede på listen.' : 'Kunne ikke tilføje.')
+      setFeedback(error.code === '23505' ? t('playlistAdd.alreadyOnList') : t('playlistAdd.couldNotAdd'))
     } else {
-      setFeedback('Tilføjet!')
+      setFeedback(t('playlistAdd.added'))
     }
     setTimeout(() => setFeedback(''), 2000)
     setOpen(false)
@@ -48,7 +50,7 @@ export default function AddToPlaylistButton({ trackId }) {
     setCreating(true)
     const { data, error } = await supabase.from('playlists').insert({ title }).select().single()
     if (error) {
-      setFeedback('Kunne ikke oprette playliste.')
+      setFeedback(t('playlistAdd.couldNotCreate'))
       setCreating(false)
       setTimeout(() => setFeedback(''), 2500)
       return
@@ -62,16 +64,16 @@ export default function AddToPlaylistButton({ trackId }) {
   return (
     <div ref={wrapperRef} style={{ position: 'relative', display: 'inline-block' }}>
       <button type="button" className="btn ghost" onClick={toggleOpen}>
-        + Playliste
+        {t('playlistAdd.button')}
       </button>
       {open && (
         <div
           className="panel"
           style={{ position: 'absolute', top: '110%', right: 0, zIndex: 20, padding: 10, minWidth: 200 }}
         >
-          {loading && <p className="notice">Henter...</p>}
+          {loading && <p className="notice">{t('common.loading')}</p>}
           {!loading && playlists && playlists.length === 0 && (
-            <p className="notice" style={{ marginBottom: 8 }}>Du har ingen playlister endnu.</p>
+            <p className="notice" style={{ marginBottom: 8 }}>{t('playlistAdd.none')}</p>
           )}
           {!loading &&
             playlists?.map((p) => (
@@ -87,13 +89,13 @@ export default function AddToPlaylistButton({ trackId }) {
             ))}
           <form onSubmit={createAndAdd} style={{ marginTop: 8, display: 'flex', gap: 6 }}>
             <input
-              placeholder="Ny playliste"
+              placeholder={t('playlistAdd.newPlaceholder')}
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               style={{ flex: 1, minWidth: 0 }}
             />
             <button className="btn" type="submit" disabled={creating || !newTitle.trim()}>
-              {creating ? '...' : 'Opret'}
+              {creating ? '...' : t('common.create')}
             </button>
           </form>
         </div>

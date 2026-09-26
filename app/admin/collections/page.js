@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { controlStyle } from '../../../lib/shared'
-import { SEASON_LABELS, SEASON_ORDER, collectionTitle } from '../../../lib/collections'
+import { SEASON_ORDER, collectionTitle } from '../../../lib/collections'
+import { useLanguage } from '../../../components/LanguageProvider'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -15,6 +16,7 @@ function Msg({ msg }) {
 const currentYear = new Date().getFullYear()
 
 export default function CollectionsAdminPage() {
+  const { t } = useLanguage()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
   const [me, setMe] = useState(null)
@@ -80,7 +82,7 @@ export default function CollectionsAdminPage() {
     if (error) {
       setMsg({
         type: 'error',
-        text: error.code === '23505' ? 'Den sæson/år findes allerede.' : error.message,
+        text: error.code === '23505' ? t('adminCollections.duplicate') : error.message,
       })
       return
     }
@@ -115,7 +117,7 @@ export default function CollectionsAdminPage() {
     if (error) {
       setMsg({
         type: 'error',
-        text: error.code === '23505' ? 'Den sæson/år findes allerede for en anden kollektion.' : error.message,
+        text: error.code === '23505' ? t('adminCollections.duplicateOther') : error.message,
       })
       return
     }
@@ -135,7 +137,7 @@ export default function CollectionsAdminPage() {
   }
 
   async function deleteCollection(c) {
-    if (!window.confirm(`Slet kollektionen "${collectionTitle(c)}"? Det kan ikke fortrydes.`)) return
+    if (!window.confirm(t('adminCollections.deleteConfirm', { title: collectionTitle(c, t) }))) return
     setBusy(c.id)
     const { error } = await supabase.from('collections').delete().eq('id', c.id)
     setBusy('')
@@ -146,36 +148,34 @@ export default function CollectionsAdminPage() {
     load()
   }
 
-  if (session === undefined || !checked) return <p className="notice">Henter...</p>
+  if (session === undefined || !checked) return <p className="notice">{t('common.loading')}</p>
   if (me?.role !== 'admin') {
     return (
       <section>
-        <h2>Kollektioner</h2>
-        <p className="notice" style={{ marginTop: 12 }}>Du har ikke adgang til denne side.</p>
+        <h2>{t('adminCollections.title')}</h2>
+        <p className="notice" style={{ marginTop: 12 }}>{t('admin.noAccess')}</p>
       </section>
     )
   }
 
   return (
     <section>
-      <h2>Kollektioner</h2>
-      <p className="notice" style={{ marginTop: 8 }}>
-        Fire årlige kollektioner — Forår, Sommer, Efterår, Vinter — sammensat af udvalgte udgivelser.
-      </p>
+      <h2>{t('adminCollections.title')}</h2>
+      <p className="notice" style={{ marginTop: 8 }}>{t('adminCollections.intro')}</p>
 
       <div className="panel" style={{ maxWidth: 480, marginTop: 20, marginBottom: 28 }}>
-        <h3 style={{ fontSize: 16, marginBottom: 12 }}>Opret ny kollektion</h3>
+        <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t('adminCollections.createTitle')}</h3>
         <form onSubmit={createCollection}>
           <div className="field">
-            <label>Sæson</label>
+            <label>{t('adminCollections.season')}</label>
             <select style={controlStyle} value={newSeason} onChange={(e) => setNewSeason(e.target.value)}>
               {SEASON_ORDER.map((s) => (
-                <option key={s} value={s}>{SEASON_LABELS[s]}</option>
+                <option key={s} value={s}>{t(`season.${s}`)}</option>
               ))}
             </select>
           </div>
           <div className="field">
-            <label>År</label>
+            <label>{t('adminCollections.year')}</label>
             <input
               type="number"
               value={newYear}
@@ -184,71 +184,72 @@ export default function CollectionsAdminPage() {
             />
           </div>
           <div className="field">
-            <label>Eget navn (valgfrit)</label>
+            <label>{t('adminCollections.ownTitle')}</label>
             <input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder={`Standard: ${SEASON_LABELS[newSeason]} ${newYear}`}
+              placeholder={t('adminCollections.ownTitlePlaceholder', { season: t(`season.${newSeason}`), year: newYear })}
             />
           </div>
           <Msg msg={msg} />
           <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Opretter...' : 'Opret kollektion'}
+            {creating ? t('common.saving') : t('adminCollections.createButton')}
           </button>
         </form>
       </div>
 
-      {collections.length === 0 && <p className="notice">Ingen kollektioner oprettet endnu.</p>}
+      {collections.length === 0 && <p className="notice">{t('adminCollections.empty')}</p>}
       {collections.map((c) =>
         editingId === c.id ? (
           <div className="panel" key={c.id} style={{ maxWidth: 480, marginBottom: 16 }}>
             <div className="field">
-              <label>Sæson</label>
+              <label>{t('adminCollections.season')}</label>
               <select style={controlStyle} value={editSeason} onChange={(e) => setEditSeason(e.target.value)}>
                 {SEASON_ORDER.map((s) => (
-                  <option key={s} value={s}>{SEASON_LABELS[s]}</option>
+                  <option key={s} value={s}>{t(`season.${s}`)}</option>
                 ))}
               </select>
             </div>
             <div className="field">
-              <label>År</label>
+              <label>{t('adminCollections.year')}</label>
               <input type="number" value={editYear} onChange={(e) => setEditYear(e.target.value)} style={controlStyle} />
             </div>
             <div className="field">
-              <label>Eget navn (valgfrit)</label>
+              <label>{t('adminCollections.ownTitle')}</label>
               <input
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                placeholder={`Standard: ${SEASON_LABELS[editSeason]} ${editYear}`}
+                placeholder={t('adminCollections.ownTitlePlaceholder', { season: t(`season.${editSeason}`), year: editYear })}
               />
             </div>
             <Msg msg={msg} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn" type="button" disabled={saving} onClick={() => saveEdit(c)}>
-                {saving ? 'Gemmer...' : 'Gem ændringer'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
               <button className="btn ghost" type="button" onClick={cancelEdit}>
-                Annuller
+                {t('common.cancel')}
               </button>
             </div>
           </div>
         ) : (
           <div className="track-row" key={c.id}>
             <div className="ttitle">
-              <Link href={`/admin/collections/${c.id}`}>{collectionTitle(c)}</Link>
+              <Link href={`/admin/collections/${c.id}`}>{collectionTitle(c, t)}</Link>
               <div className="notice">
-                {c.enabled ? 'Aktiveret' : 'Deaktiveret'} · {c.collection_releases?.[0]?.count ?? 0} udgivelser
+                {c.enabled ? t('adminCollections.enabled') : t('adminCollections.disabled')} ·{' '}
+                {t('home.collections.releaseCount', { count: c.collection_releases?.[0]?.count ?? 0 })}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn ghost" type="button" onClick={() => startEdit(c)}>
-                Redigér
+                {t('common.edit')}
               </button>
               <button className="btn ghost" type="button" disabled={busy === c.id} onClick={() => toggleEnabled(c)}>
-                {c.enabled ? 'Deaktivér' : 'Aktivér'}
+                {c.enabled ? t('adminCollections.disable') : t('adminCollections.enable')}
               </button>
               <button className="btn ghost" type="button" disabled={busy === c.id} onClick={() => deleteCollection(c)}>
-                Slet
+                {t('common.delete')}
               </button>
             </div>
           </div>

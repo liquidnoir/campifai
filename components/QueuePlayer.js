@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useLanguage } from './LanguageProvider'
 
 function shuffle(arr) {
   const a = [...arr]
@@ -22,9 +23,10 @@ export default function QueuePlayer({
   autoStart = false,
   loop = false,
   onTrackStart,
-  emptyMessage = 'Ingen numre fundet.',
+  emptyMessage,
   renderActions,
 }) {
+  const { t } = useLanguage()
   const [tracks, setTracks] = useState(initialTracks)
   const [index, setIndex] = useState(startIndex)
   const [started, setStarted] = useState(autoStart)
@@ -76,14 +78,14 @@ export default function QueuePlayer({
     })
   }
 
-  if (tracks.length === 0) return <p className="notice">{emptyMessage}</p>
+  if (tracks.length === 0) return <p className="notice">{emptyMessage || t('player.empty')}</p>
 
   const current = tracks[index]
 
   return (
     <div>
       <div className="panel" style={{ marginBottom: 20 }}>
-        <div className="notice">Nu spiller</div>
+        <div className="notice">{t('player.nowPlaying')}</div>
         <div style={{ fontSize: 16, fontWeight: 500, marginTop: 4 }}>{current.title}</div>
         {(current.artistName || current.releaseTitle) && (
           <div className="notice">
@@ -93,7 +95,7 @@ export default function QueuePlayer({
         )}
         {!started ? (
           <button className="btn" type="button" style={{ marginTop: 12 }} onClick={handleStart}>
-            Afspil
+            {t('common.play')}
           </button>
         ) : (
           <>
@@ -108,12 +110,12 @@ export default function QueuePlayer({
                   setNeedsTap(false)
                 }}
               >
-                Tryk for at starte afspilning
+                {t('player.tapToStart')}
               </button>
             )}
             {(tracks.length > 1 || loop) && (
               <button className="btn ghost" type="button" style={{ marginTop: 12 }} onClick={handleEnded}>
-                Næste
+                {t('common.next')}
               </button>
             )}
           </>

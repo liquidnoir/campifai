@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 import { collectionTitle } from '../../../../lib/collections'
+import { useLanguage } from '../../../../components/LanguageProvider'
 
 export default function CollectionDetailPage() {
+  const { t } = useLanguage()
   const { id } = useParams()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
@@ -102,7 +104,7 @@ export default function CollectionDetailPage() {
     const combined = [...byId.values()]
     setResults(combined)
     if (combined.length === 0) {
-      setMsg({ type: 'ok', text: `Ingen udgivelser matcher "${q}".` })
+      setMsg({ type: 'ok', text: t('adminCollectionDetail.noMatch', { query: q }) })
     }
   }
 
@@ -112,7 +114,7 @@ export default function CollectionDetailPage() {
       .from('collection_releases')
       .insert({ collection_id: id, release_id: release.id })
     if (error) {
-      setMsg({ type: 'error', text: error.code === '23505' ? 'Ligger allerede i kollektionen.' : error.message })
+      setMsg({ type: 'error', text: error.code === '23505' ? t('adminCollectionDetail.alreadyIn') : error.message })
       return
     }
     load()
@@ -141,44 +143,44 @@ export default function CollectionDetailPage() {
     load()
   }
 
-  if (session === undefined || !checked) return <p className="notice">Henter...</p>
+  if (session === undefined || !checked) return <p className="notice">{t('common.loading')}</p>
   if (me?.role !== 'admin') {
     return (
       <section>
-        <h2>Kollektion</h2>
-        <p className="notice" style={{ marginTop: 12 }}>Du har ikke adgang til denne side.</p>
+        <h2>{t('adminCollectionDetail.title')}</h2>
+        <p className="notice" style={{ marginTop: 12 }}>{t('admin.noAccess')}</p>
       </section>
     )
   }
-  if (!collection) return <p className="notice">Kollektionen findes ikke.</p>
+  if (!collection) return <p className="notice">{t('collectionPage.notFound')}</p>
 
   const addedIds = new Set(rows.map((r) => r.release_id))
 
   return (
     <section>
       <div className="section-head">
-        <h2>{collectionTitle(collection)}</h2>
+        <h2>{collectionTitle(collection, t)}</h2>
         <button className="btn ghost" type="button" onClick={toggleEnabled}>
-          {collection.enabled ? 'Deaktivér' : 'Aktivér'}
+          {collection.enabled ? t('adminCollections.disable') : t('adminCollections.enable')}
         </button>
       </div>
       <p className="notice" style={{ marginBottom: 20 }}>
-        {collection.enabled ? 'Synlig for alle, når kataloget viser kollektioner.' : 'Skjult indtil den aktiveres.'}
+        {collection.enabled ? t('adminCollectionDetail.visibleHint') : t('adminCollectionDetail.hiddenHint')}
       </p>
 
       <Msg msg={msg} />
 
       <div className="panel" style={{ marginBottom: 28 }}>
-        <h3 style={{ fontSize: 16, marginBottom: 12 }}>Tilføj udgivelse</h3>
+        <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t('adminCollectionDetail.addRelease')}</h3>
         <form onSubmit={runSearch} style={{ display: 'flex', gap: 8 }}>
           <input
-            placeholder="Søg på titel eller kunstner"
+            placeholder={t('adminCollectionDetail.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1 }}
           />
           <button className="btn" type="submit" disabled={searching}>
-            {searching ? '...' : 'Søg'}
+            {searching ? '...' : t('adminCollectionDetail.search')}
           </button>
         </form>
         {results.length > 0 && (
@@ -189,10 +191,10 @@ export default function CollectionDetailPage() {
                 <div className="track-row" key={r.id}>
                   <div className="ttitle">
                     {r.title}
-                    <div className="notice">{r.artists?.name || 'Ukendt kunstner'}</div>
+                    <div className="notice">{r.artists?.name || t('home.unknownArtist')}</div>
                   </div>
                   <button className="btn ghost" type="button" disabled={already} onClick={() => addRelease(r)}>
-                    {already ? 'Tilføjet' : 'Tilføj'}
+                    {already ? t('adminCollectionDetail.added') : t('adminCollectionDetail.addButton')}
                   </button>
                 </div>
               )
@@ -201,16 +203,16 @@ export default function CollectionDetailPage() {
         )}
       </div>
 
-      <h3 style={{ fontSize: 16, marginBottom: 8 }}>I kollektionen ({rows.length})</h3>
-      {rows.length === 0 && <p className="notice">Ingen udgivelser tilføjet endnu.</p>}
+      <h3 style={{ fontSize: 16, marginBottom: 8 }}>{t('adminCollectionDetail.inCollection', { count: rows.length })}</h3>
+      {rows.length === 0 && <p className="notice">{t('adminCollectionDetail.empty')}</p>}
       {rows.map((row) => (
         <div className="track-row" key={row.id}>
           <div className="ttitle">
             {row.releases.title}
-            <div className="notice">{row.releases.artists?.name || 'Ukendt kunstner'}</div>
+            <div className="notice">{row.releases.artists?.name || t('home.unknownArtist')}</div>
           </div>
           <button className="btn ghost" type="button" disabled={busy === row.id} onClick={() => removeRow(row)}>
-            Fjern
+            {t('adminCollectionDetail.remove')}
           </button>
         </div>
       ))}

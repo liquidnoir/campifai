@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
+import { imagePublicUrl } from '../../../lib/shared'
+import { useLanguage } from '../../../components/LanguageProvider'
 
 export default function ArtistPage() {
+  const { t } = useLanguage()
   const { id } = useParams()
   const [artist, setArtist] = useState(null)
   const [releases, setReleases] = useState([])
@@ -37,8 +39,8 @@ export default function ArtistPage() {
     setLoading(false)
   }
 
-  if (loading) return <p className="notice">Henter...</p>
-  if (!artist) return <p className="notice">Kunstner ikke fundet.</p>
+  if (loading) return <p className="notice">{t('common.loading')}</p>
+  if (!artist) return <p className="notice">{t('artist.notFound')}</p>
 
   const avatarUrl = imagePublicUrl(supabase, artist.image_path)
   const publisherName = artist.profiles?.display_name
@@ -68,13 +70,15 @@ export default function ArtistPage() {
         </div>
         <div>
           <h2>{artist.name}</h2>
-          {showPublisher && <p className="notice" style={{ marginTop: 4 }}>Udgivet af {publisherName}</p>}
+          {showPublisher && (
+            <p className="notice" style={{ marginTop: 4 }}>{t('artist.publishedBy', { name: publisherName })}</p>
+          )}
         </div>
       </div>
       {artist.bio && <p className="notice" style={{ marginTop: 16 }}>{artist.bio}</p>}
 
       <div style={{ marginTop: 28 }}>
-        {releases.length === 0 && <p className="notice">Ingen udgivelser endnu.</p>}
+        {releases.length === 0 && <p className="notice">{t('artist.noReleases')}</p>}
         <div className="grid">
           {releases.map((r) => {
             const coverUrl = imagePublicUrl(supabase, r.cover_path)
@@ -94,7 +98,7 @@ export default function ArtistPage() {
                 <div className="meta">
                   <div className="artist">{r.title}</div>
                   <div className="sub">
-                    {RELEASE_TYPE_LABELS[r.type] || r.type} · {r.tracks?.[0]?.count ?? 0} numre
+                    {t(`type.${r.type}`) || r.type} · {t('release.trackCount', { count: r.tracks?.[0]?.count ?? 0 })}
                   </div>
                 </div>
               </Link>

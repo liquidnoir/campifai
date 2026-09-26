@@ -2,8 +2,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { useLanguage } from '../../components/LanguageProvider'
 
 export default function Login() {
+  const { t } = useLanguage()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -14,7 +16,7 @@ export default function Login() {
     e.preventDefault()
     setError('')
     if (!email.trim() || !password) {
-      setError('Udfyld email og adgangskode.')
+      setError(t('login.fillFields'))
       return
     }
     setLoading(true)
@@ -29,19 +31,19 @@ export default function Login() {
 
   return (
     <section>
-      <h2>Log ind</h2>
+      <h2>{t('login.title')}</h2>
       <form onSubmit={handleSubmit} className="panel" style={{ maxWidth: 420, marginTop: 18 }}>
         <div className="field">
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t('login.email')}</label>
           <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="pw">Adgangskode</label>
+          <label htmlFor="pw">{t('login.password')}</label>
           <input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
         {error && <div className="error-msg">{error}</div>}
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Logger ind...' : 'Log ind'}
+          {loading ? t('login.loggingIn') : t('login.title')}
         </button>
       </form>
     </section>

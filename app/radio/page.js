@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import QueuePlayer from '../../components/QueuePlayer'
+import { useLanguage } from '../../components/LanguageProvider'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -19,6 +20,7 @@ function shuffle(arr) {
 }
 
 function RadioContent() {
+  const { t } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
   const genre = searchParams.get('genre') || ''
@@ -38,7 +40,7 @@ function RadioContent() {
       return
     }
     if (!genre) {
-      setError('Ingen genre angivet.')
+      setError(t('radio.noGenre'))
       setTracks([])
       return
     }
@@ -80,48 +82,47 @@ function RadioContent() {
 
     setTracks(
       ordered
-        .filter((t) => urlByPath[t.audio_path])
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          artistName: t.releases?.artists?.name || 'Ukendt kunstner',
-          releaseTitle: t.releases?.title,
-          url: urlByPath[t.audio_path],
+        .filter((tr) => urlByPath[tr.audio_path])
+        .map((tr) => ({
+          id: tr.id,
+          title: tr.title,
+          artistName: tr.releases?.artists?.name || t('home.unknownArtist'),
+          releaseTitle: tr.releases?.title,
+          url: urlByPath[tr.audio_path],
         }))
     )
   }
 
-  async function handleTrackStart(t) {
+  async function handleTrackStart(tr) {
     try {
-      await supabase.rpc('increment_play_count', { track_id: t.id })
+      await supabase.rpc('increment_play_count', { track_id: tr.id })
     } catch {
       // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
     }
   }
 
-  if (session === undefined || tracks === null) return <p className="notice">Henter...</p>
+  if (session === undefined || tracks === null) return <p className="notice">{t('common.loading')}</p>
 
   return (
     <section>
-      <h2>Radio — {genre}</h2>
-      <p className="notice" style={{ marginTop: 8, marginBottom: 20 }}>
-        Spiller tilfældige numre inden for genren, i det uendelige.
-      </p>
+      <h2>{t('radio.titleWithGenre', { genre })}</h2>
+      <p className="notice" style={{ marginTop: 8, marginBottom: 20 }}>{t('radio.subtitle')}</p>
       {error && <p className="error-msg">{error}</p>}
       <QueuePlayer
         tracks={tracks}
         autoStart
         loop
         onTrackStart={handleTrackStart}
-        emptyMessage="Ingen numre fundet i denne genre."
+        emptyMessage={t('radio.noTracksInGenre')}
       />
     </section>
   )
 }
 
 export default function RadioPage() {
+  const { t } = useLanguage()
   return (
-    <Suspense fallback={<p className="notice">Henter...</p>}>
+    <Suspense fallback={<p className="notice">{t('common.loading')}</p>}>
       <RadioContent />
     </Suspense>
   )

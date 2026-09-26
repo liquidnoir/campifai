@@ -1,15 +1,16 @@
 import './globals.css'
 import Nav from '../components/Nav'
 import AuthGate from '../components/AuthGate'
+import { LanguageProvider } from '../components/LanguageProvider'
 
 export const metadata = {
   title: 'Campifai',
-  description: 'Musik direkte fra kunstneren til dig',
+  description: 'Music straight from the artist to you',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="da">
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -19,10 +20,12 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        <Nav />
-        <main className="wrap">
-          <AuthGate>{children}</AuthGate>
-        </main>
+        <LanguageProvider>
+          <Nav />
+          <main className="wrap">
+            <AuthGate>{children}</AuthGate>
+          </main>
+        </LanguageProvider>
       </body>
     </html>
   )

@@ -1,9 +1,11 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useLanguage } from './LanguageProvider'
 
 // path skal være en relativ sti, fx "/release/abc-123". Den fulde URL bygges
 // først ved klik, så komponenten er sikker at bruge under server-rendering.
-export default function ShareButton({ path, title, label = 'Del' }) {
+export default function ShareButton({ path, title, label }) {
+  const { t } = useLanguage()
   const [menuOpen, setMenuOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const wrapperRef = useRef(null)
@@ -43,9 +45,9 @@ export default function ShareButton({ path, title, label = 'Del' }) {
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(fullUrl())
-      setFeedback('Link kopieret!')
+      setFeedback(t('share.copied'))
     } catch {
-      setFeedback('Kunne ikke kopiere linket.')
+      setFeedback(t('share.copyFailed'))
     }
     setMenuOpen(false)
     setTimeout(() => setFeedback(''), 2500)
@@ -54,7 +56,7 @@ export default function ShareButton({ path, title, label = 'Del' }) {
   return (
     <div ref={wrapperRef} style={{ position: 'relative', display: 'inline-block' }}>
       <button type="button" className="btn ghost" onClick={handleClick}>
-        {label}
+        {label || t('share.label')}
       </button>
       {menuOpen && (
         <div
@@ -67,7 +69,7 @@ export default function ShareButton({ path, title, label = 'Del' }) {
             style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 4 }}
             onClick={shareViaSms}
           >
-            Del via sms
+            {t('share.viaSms')}
           </button>
           <button
             type="button"
@@ -75,7 +77,7 @@ export default function ShareButton({ path, title, label = 'Del' }) {
             style={{ display: 'block', width: '100%', textAlign: 'left' }}
             onClick={copyLink}
           >
-            Kopiér link
+            {t('share.copyLink')}
           </button>
         </div>
       )}

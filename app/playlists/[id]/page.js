@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import QueuePlayer from '../../../components/QueuePlayer'
+import { useLanguage } from '../../../components/LanguageProvider'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
 
 export default function PlaylistPage() {
+  const { t } = useLanguage()
   const { id } = useParams()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
@@ -81,28 +83,28 @@ export default function PlaylistPage() {
   }
 
   async function deletePlaylist() {
-    if (!window.confirm(`Slet playlisten "${playlist.title}"? Det kan ikke fortrydes.`)) return
+    if (!window.confirm(t('playlists.deleteConfirm', { title: playlist.title }))) return
     await supabase.from('playlists').delete().eq('id', id)
     router.push('/playlists')
   }
 
-  async function handleTrackStart(t) {
+  async function handleTrackStart(tr) {
     try {
-      await supabase.rpc('increment_play_count', { track_id: t.id })
+      await supabase.rpc('increment_play_count', { track_id: tr.id })
     } catch {
       // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
     }
   }
 
-  if (session === undefined || loading) return <p className="notice">Henter...</p>
-  if (!playlist) return <p className="notice">Playlisten findes ikke, eller du har ikke adgang til den.</p>
+  if (session === undefined || loading) return <p className="notice">{t('common.loading')}</p>
+  if (!playlist) return <p className="notice">{t('playlists.notFound')}</p>
 
   const playerTracks = rows
     .filter((r) => r.track.url)
     .map((r) => ({
       id: r.track.id,
       title: r.track.title,
-      artistName: r.track.releases?.artists?.name || 'Ukendt kunstner',
+      artistName: r.track.releases?.artists?.name || t('home.unknownArtist'),
       releaseTitle: r.track.releases?.title,
       url: r.track.url,
     }))
@@ -112,17 +114,17 @@ export default function PlaylistPage() {
       {editingTitle ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 420 }}>
           <input value={titleValue} onChange={(e) => setTitleValue(e.target.value)} maxLength={100} style={{ flex: 1 }} />
-          <button className="btn" type="button" onClick={saveTitle}>Gem</button>
+          <button className="btn" type="button" onClick={saveTitle}>{t('common.save')}</button>
           <button className="btn ghost" type="button" onClick={() => { setEditingTitle(false); setTitleValue(playlist.title) }}>
-            Annuller
+            {t('common.cancel')}
           </button>
         </div>
       ) : (
         <div className="section-head">
           <h2>{playlist.title}</h2>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn ghost" type="button" onClick={() => setEditingTitle(true)}>Omdøb</button>
-            <button className="btn ghost" type="button" onClick={deletePlaylist}>Slet playliste</button>
+            <button className="btn ghost" type="button" onClick={() => setEditingTitle(true)}>{t('playlists.rename')}</button>
+            <button className="btn ghost" type="button" onClick={deletePlaylist}>{t('playlists.deleteButton')}</button>
           </div>
         </div>
       )}
@@ -131,23 +133,23 @@ export default function PlaylistPage() {
         <QueuePlayer
           tracks={playerTracks}
           onTrackStart={handleTrackStart}
-          emptyMessage="Ingen afspillelige numre i denne playliste endnu."
+          emptyMessage={t('playlists.noPlayableTracks')}
         />
       </div>
 
       {rows.length > 0 && (
         <div style={{ marginTop: 28 }}>
-          <h3 style={{ fontSize: 15, marginBottom: 8 }}>Administrér numre</h3>
+          <h3 style={{ fontSize: 15, marginBottom: 8 }}>{t('playlists.manageTracks')}</h3>
           {rows.map((row) => (
             <div className="track-row" key={row.id}>
               <div className="ttitle">
                 {row.track.title}
                 <div className="notice">
-                  {row.track.releases?.artists?.name || 'Ukendt kunstner'} · {row.track.releases?.title}
+                  {row.track.releases?.artists?.name || t('home.unknownArtist')} · {row.track.releases?.title}
                 </div>
               </div>
               <button className="btn ghost" type="button" onClick={() => removeRow(row)}>
-                Fjern
+                {t('adminCollectionDetail.remove')}
               </button>
             </div>
           ))}

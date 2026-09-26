@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { useLanguage } from './LanguageProvider'
 
 // Nøjagtige sider man må se uden login
 const PUBLIC_PATHS = ['/', '/login', '/signup']
@@ -13,6 +14,7 @@ function isPublicPath(pathname) {
 }
 
 export default function AuthGate({ children }) {
+  const { t } = useLanguage()
   const [session, setSession] = useState(undefined) // undefined = tjekker stadig
   const pathname = usePathname()
   const router = useRouter()
@@ -29,7 +31,7 @@ export default function AuthGate({ children }) {
   }, [session, isPublic])
 
   if (isPublic) return children
-  if (session === undefined) return <p className="notice">Henter...</p>
+  if (session === undefined) return <p className="notice">{t('common.loading')}</p>
   if (session === null) return null
   return children
 }

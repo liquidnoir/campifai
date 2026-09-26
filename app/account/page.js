@@ -2,13 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import {
-  MAX_ARTISTS,
-  ROLE_LABELS,
-  controlStyle,
-  removeFolderFiles,
-  removeFolderImages,
-} from '../../lib/shared'
+import { MAX_ARTISTS, controlStyle, removeFolderFiles, removeFolderImages } from '../../lib/shared'
+import { useLanguage } from '../../components/LanguageProvider'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -17,6 +12,7 @@ function Msg({ msg }) {
 }
 
 export default function Account() {
+  const { t } = useLanguage()
   const router = useRouter()
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -59,7 +55,7 @@ export default function Account() {
     e.preventDefault()
     setProfileMsg(null)
     if (!displayName.trim()) {
-      setProfileMsg({ type: 'error', text: 'Navn må ikke være tomt.' })
+      setProfileMsg({ type: 'error', text: t('account.nameEmpty') })
       return
     }
     setSavingProfile(true)
@@ -72,18 +68,18 @@ export default function Account() {
       setProfileMsg({ type: 'error', text: error.message })
       return
     }
-    setProfileMsg({ type: 'ok', text: 'Dine ændringer er gemt.' })
+    setProfileMsg({ type: 'ok', text: t('account.profileSaved') })
   }
 
   async function savePassword(e) {
     e.preventDefault()
     setPasswordMsg(null)
     if (newPassword.length < 6) {
-      setPasswordMsg({ type: 'error', text: 'Adgangskoden skal være mindst 6 tegn.' })
+      setPasswordMsg({ type: 'error', text: t('signup.passwordTooShort') })
       return
     }
     if (newPassword !== repeatPassword) {
-      setPasswordMsg({ type: 'error', text: 'De to adgangskoder er ikke ens.' })
+      setPasswordMsg({ type: 'error', text: t('account.passwordsDontMatch') })
       return
     }
     setSavingPassword(true)
@@ -95,21 +91,21 @@ export default function Account() {
     }
     setNewPassword('')
     setRepeatPassword('')
-    setPasswordMsg({ type: 'ok', text: 'Din adgangskode er ændret.' })
+    setPasswordMsg({ type: 'ok', text: t('account.passwordChanged') })
   }
 
   async function deleteAccount(e) {
     e.preventDefault()
     setDeleteMsg(null)
-    if (confirmText.trim().toUpperCase() !== 'SLET') {
-      setDeleteMsg({ type: 'error', text: 'Skriv SLET i feltet for at bekræfte.' })
+    if (confirmText.trim().toUpperCase() !== t('account.delete.confirmWord')) {
+      setDeleteMsg({ type: 'error', text: t('account.delete.typeToConfirm', { word: t('account.delete.confirmWord') }) })
       return
     }
     setDeleting(true)
     try {
       // 1. Slet alle lyd- og billedfiler i din mappe (skal gøres før kontoen kan slettes)
-      await removeFolderFiles(supabase, session.user.id)
-      await removeFolderImages(supabase, session.user.id)
+      await removeFolderFiles(supabase, session.user.id, t)
+      await removeFolderImages(supabase, session.user.id, t)
 
       // 2. Slet kontoen (profil, kunstnere, udgivelser og numre forsvinder automatisk med)
       const { error: rpcError } = await supabase.rpc('delete_my_account')
@@ -118,34 +114,34 @@ export default function Account() {
       await supabase.auth.signOut({ scope: 'local' })
       router.replace('/login')
     } catch (err) {
-      setDeleteMsg({ type: 'error', text: err.message || 'Noget gik galt. Prøv igen.' })
+      setDeleteMsg({ type: 'error', text: err.message || t('common.somethingWrong') })
       setDeleting(false)
     }
   }
 
-  if (loading) return <p className="notice">Henter...</p>
-  if (!profile) return <p className="notice">Kunne ikke hente din profil. Opdatér siden.</p>
+  if (loading) return <p className="notice">{t('common.loading')}</p>
+  if (!profile) return <p className="notice">{t('account.couldNotLoad')}</p>
 
-  const roleLabel = ROLE_LABELS[profile.role] || profile.role
+  const roleLabel = t(`role.${profile.role}`) || profile.role
   const isPublisher = profile.role === 'publisher'
   const isAdmin = profile.role === 'admin'
 
   return (
     <section>
-      <h2>Min konto</h2>
+      <h2>{t('nav.account')}</h2>
       <p className="notice" style={{ marginTop: 8 }}>
         {session.user.email} · {roleLabel}
       </p>
       {isPublisher && (
         <p className="notice" style={{ marginTop: 4 }}>
-          Som publisher kan du oprette op til {MAX_ARTISTS} kunstnere under Udgivelser.
+          {t('account.publisherHint', { max: MAX_ARTISTS })}
         </p>
       )}
 
       <form onSubmit={saveProfile} className="panel" style={{ maxWidth: 520, marginTop: 20 }}>
-        <h3 style={{ fontSize: 16, marginBottom: 16 }}>Profil</h3>
+        <h3 style={{ fontSize: 16, marginBottom: 16 }}>{t('account.profile')}</h3>
         <div className="field">
-          <label htmlFor="name">Navn</label>
+          <label htmlFor="name">{t('signup.name')}</label>
           <input
             id="name"
             maxLength={60}
@@ -154,7 +150,7 @@ export default function Account() {
           />
         </div>
         <div className="field">
-          <label htmlFor="bio">Om mig</label>
+          <label htmlFor="bio">{t('account.aboutMe')}</label>
           <textarea
             id="bio"
             maxLength={500}
@@ -165,14 +161,14 @@ export default function Account() {
         </div>
         <Msg msg={profileMsg} />
         <button className="btn" type="submit" disabled={savingProfile}>
-          {savingProfile ? 'Gemmer...' : 'Gem ændringer'}
+          {savingProfile ? t('common.saving') : t('common.save')}
         </button>
       </form>
 
       <form onSubmit={savePassword} className="panel" style={{ maxWidth: 520, marginTop: 24 }}>
-        <h3 style={{ fontSize: 16, marginBottom: 16 }}>Skift adgangskode</h3>
+        <h3 style={{ fontSize: 16, marginBottom: 16 }}>{t('account.changePassword')}</h3>
         <div className="field">
-          <label htmlFor="newpw">Ny adgangskode</label>
+          <label htmlFor="newpw">{t('account.newPassword')}</label>
           <input
             id="newpw"
             type="password"
@@ -182,7 +178,7 @@ export default function Account() {
           />
         </div>
         <div className="field">
-          <label htmlFor="repeatpw">Gentag ny adgangskode</label>
+          <label htmlFor="repeatpw">{t('account.repeatPassword')}</label>
           <input
             id="repeatpw"
             type="password"
@@ -193,16 +189,14 @@ export default function Account() {
         </div>
         <Msg msg={passwordMsg} />
         <button className="btn" type="submit" disabled={savingPassword}>
-          {savingPassword ? 'Gemmer...' : 'Skift adgangskode'}
+          {savingPassword ? t('common.saving') : t('account.changePassword')}
         </button>
       </form>
 
       {isAdmin ? (
         <div className="panel" style={{ maxWidth: 520, marginTop: 24, marginBottom: 40 }}>
-          <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
-          <p className="notice">
-            Admin-konti kan ikke slettes her. Bed en anden admin om først at fjerne din adminrolle.
-          </p>
+          <h3 style={{ fontSize: 16, marginBottom: 8 }}>{t('account.delete.title')}</h3>
+          <p className="notice">{t('account.delete.adminBlocked')}</p>
         </div>
       ) : (
         <form
@@ -210,14 +204,12 @@ export default function Account() {
           className="panel"
           style={{ maxWidth: 520, marginTop: 24, marginBottom: 40, borderColor: '#B8452B' }}
         >
-          <h3 style={{ fontSize: 16, marginBottom: 8 }}>Slet konto</h3>
+          <h3 style={{ fontSize: 16, marginBottom: 8 }}>{t('account.delete.title')}</h3>
           <p className="notice" style={{ marginBottom: 16 }}>
-            Din konto og din profil
-            {isPublisher ? ', alle dine kunstnere, udgivelser, numre og billeder' : ''} slettes
-            permanent. Det kan ikke fortrydes.
+            {isPublisher ? t('account.delete.warningPublisher') : t('account.delete.warning')}
           </p>
           <div className="field">
-            <label htmlFor="confirm">Skriv SLET for at bekræfte</label>
+            <label htmlFor="confirm">{t('account.delete.typeToConfirm', { word: t('account.delete.confirmWord') })}</label>
             <input
               id="confirm"
               autoComplete="off"
@@ -227,7 +219,7 @@ export default function Account() {
           </div>
           <Msg msg={deleteMsg} />
           <button className="btn" type="submit" disabled={deleting}>
-            {deleting ? 'Sletter...' : 'Slet min konto'}
+            {deleting ? t('account.delete.deleting') : t('account.delete.button')}
           </button>
         </form>
       )}

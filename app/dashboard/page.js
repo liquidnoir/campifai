@@ -6,7 +6,6 @@ import { supabase } from '../../lib/supabase'
 import {
   MAX_ARTISTS,
   MAX_IMAGE_MB,
-  RELEASE_TYPE_LABELS,
   RELEASE_TYPE_LIMITS,
   canPublish,
   controlStyle,
@@ -15,17 +14,19 @@ import {
   safeFileName,
   uploadImage,
 } from '../../lib/shared'
+import { useLanguage } from '../../components/LanguageProvider'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
+const RELEASE_TYPES = Object.keys(RELEASE_TYPE_LIMITS)
 
 // Supabase gratis-plan tillader højst 50 MB pr. fil.
 // Opgraderer du planen (og hæver grænsen under Storage → Settings), kan du ændre tallet her.
 const MAX_UPLOAD_MB = 50
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
-function tooBigMessage(bytes) {
+function tooBigMessage(bytes, t) {
   const mb = (bytes / 1024 / 1024).toFixed(1)
-  return `Filen er ${mb} MB, og grænsen er ${MAX_UPLOAD_MB} MB. Gem den som MP3 eller FLAC, og vælg den igen.`
+  return t('dashboard.fileTooBig', { mb, max: MAX_UPLOAD_MB })
 }
 
 function Msg({ msg }) {
@@ -33,7 +34,7 @@ function Msg({ msg }) {
   return <div className="error-msg">{msg}</div>
 }
 
-function ImagePicker({ label, currentUrl, onChange, disabled }) {
+function ImagePicker({ label, currentUrl, onChange, disabled, hint }) {
   return (
     <div className="field">
       <label>{label}</label>
@@ -53,7 +54,7 @@ function ImagePicker({ label, currentUrl, onChange, disabled }) {
         )}
         <input type="file" accept="image/*" disabled={disabled} onChange={onChange} />
       </div>
-      <div className="notice" style={{ marginTop: 4 }}>Maks. {MAX_IMAGE_MB} MB. Valgfrit.</div>
+      <div className="notice" style={{ marginTop: 4 }}>{hint}</div>
     </div>
   )
 }
@@ -76,6 +77,7 @@ function Thumb({ url, color, radius = 8 }) {
 }
 
 export default function Dashboard() {
+  const { t } = useLanguage()
   const [session, setSession] = useState(undefined)
   const [profile, setProfile] = useState(null)
   const [artists, setArtists] = useState([])
@@ -182,11 +184,11 @@ export default function Dashboard() {
     setArtistError('')
     const name = newArtistName.trim()
     if (!name) {
-      setArtistError('Angiv et navn til kunstneren.')
+      setArtistError(t('dashboard.artists.nameRequired'))
       return
     }
     if (artists.length >= MAX_ARTISTS) {
-      setArtistError(`Du kan højst have ${MAX_ARTISTS} kunstnere.`)
+      setArtistError(t('dashboard.artists.limitError', { max: MAX_ARTISTS }))
       return
     }
     setCreatingArtist(true)
@@ -199,7 +201,7 @@ export default function Dashboard() {
       if (error) throw error
 
       if (newArtistImage) {
-        const path = await uploadImage(supabase, session.user.id, 'artist', newArtistImage)
+        const path = await uploadImage(supabase, session.user.id, 'artist', newArtistImage, t)
         const { error: updateError } = await supabase.from('artists').update({ image_path: path }).eq('id', created.id)
         if (updateError) throw updateError
       }
@@ -209,7 +211,7 @@ export default function Dashboard() {
       setNewArtistImage(null)
       loadAll(session.user.id)
     } catch (err) {
-      setArtistError(err.message || 'Noget gik galt. Prøv igen.')
+      setArtistError(err.message || t('common.somethingWrong'))
     }
     setCreatingArtist(false)
   }
@@ -226,14 +228,14 @@ export default function Dashboard() {
     setArtistError('')
     const name = editArtistName.trim()
     if (!name) {
-      setArtistError('Navnet må ikke være tomt.')
+      setArtistError(t('account.nameEmpty'))
       return
     }
     setSavingArtist(true)
     try {
       const changes = { name, bio: editArtistBio.trim() || null }
       if (editArtistImage) {
-        const path = await uploadImage(supabase, session.user.id, 'artist', editArtistImage)
+        const path = await uploadImage(supabase, session.user.id, 'artist', editArtistImage, t)
         changes.image_path = path
       }
       const { error } = await supabase.from('artists').update(changes).eq('id', a.id)
@@ -244,7 +246,7 @@ export default function Dashboard() {
       setEditingArtistId(null)
       loadAll(session.user.id)
     } catch (err) {
-      setArtistError(err.message || 'Noget gik galt. Prøv igen.')
+      setArtistError(err.message || t('common.somethingWrong'))
     }
     setSavingArtist(false)
   }
@@ -254,8 +256,12 @@ export default function Dashboard() {
     const ownReleases = releases.filter((r) => r.artist_id === a.id)
     const question =
       ownReleases.length > 0
-        ? `Slet ${a.name}, med ${ownReleases.length} udgivelser og ${ownTracks.length} numre? Det kan ikke fortrydes.`
-        : `Slet ${a.name}? Det kan ikke fortrydes.`
+        ? t('dashboard.artists.deleteConfirmWithContent', {
+            name: a.name,
+            releases: ownReleases.length,
+            tracks: ownTracks.length,
+          })
+        : t('dashboard.deleteConfirmNamed', { name: a.name })
     if (!window.confirm(question)) return
     setArtistError('')
     try {
@@ -274,7 +280,7 @@ export default function Dashboard() {
       if (error) throw error
       loadAll(session.user.id)
     } catch (err) {
-      setArtistError(err.message || 'Noget gik galt. Prøv igen.')
+      setArtistError(err.message || t('common.somethingWrong'))
     }
   }
 
@@ -284,11 +290,11 @@ export default function Dashboard() {
     setReleaseError('')
     const titleValue = newReleaseTitle.trim()
     if (!newReleaseArtistId) {
-      setReleaseError('Vælg en kunstner.')
+      setReleaseError(t('dashboard.releases.selectArtist'))
       return
     }
     if (!titleValue) {
-      setReleaseError('Angiv en titel til udgivelsen.')
+      setReleaseError(t('dashboard.releases.titleRequired'))
       return
     }
     setCreatingRelease(true)
@@ -307,7 +313,7 @@ export default function Dashboard() {
       if (error) throw error
 
       if (newReleaseImage) {
-        const path = await uploadImage(supabase, session.user.id, 'release', newReleaseImage)
+        const path = await uploadImage(supabase, session.user.id, 'release', newReleaseImage, t)
         const { error: updateError } = await supabase.from('releases').update({ cover_path: path }).eq('id', created.id)
         if (updateError) throw updateError
       }
@@ -318,7 +324,7 @@ export default function Dashboard() {
       setNewReleaseImage(null)
       loadAll(session.user.id)
     } catch (err) {
-      setReleaseError(err.message || 'Noget gik galt. Prøv igen.')
+      setReleaseError(err.message || t('common.somethingWrong'))
     }
     setCreatingRelease(false)
   }
@@ -344,13 +350,13 @@ export default function Dashboard() {
     setReleaseError('')
     const titleValue = editReleaseTitle.trim()
     if (!titleValue) {
-      setReleaseError('Titlen må ikke være tom.')
+      setReleaseError(t('dashboard.releases.titleEmpty'))
       return
     }
     const currentCount = tracksFor(r.id).length
     if (editReleaseType !== r.type && currentCount > RELEASE_TYPE_LIMITS[editReleaseType]) {
       setReleaseError(
-        `Udgivelsen har ${currentCount} numre, hvilket er for mange til typen ${RELEASE_TYPE_LABELS[editReleaseType]}.`
+        t('dashboard.releases.tooManyForType', { count: currentCount, type: t(`type.${editReleaseType}`) })
       )
       return
     }
@@ -358,7 +364,7 @@ export default function Dashboard() {
     try {
       const changes = { title: titleValue, type: editReleaseType, genre: editReleaseGenre.trim() || null }
       if (editReleaseImage) {
-        const path = await uploadImage(supabase, session.user.id, 'release', editReleaseImage)
+        const path = await uploadImage(supabase, session.user.id, 'release', editReleaseImage, t)
         changes.cover_path = path
       }
       const { error } = await supabase.from('releases').update(changes).eq('id', r.id)
@@ -369,7 +375,7 @@ export default function Dashboard() {
       setEditReleaseImage(null)
       loadAll(session.user.id)
     } catch (err) {
-      setReleaseError(err.message || 'Noget gik galt. Prøv igen.')
+      setReleaseError(err.message || t('common.somethingWrong'))
     }
     setSavingRelease(false)
   }
@@ -378,8 +384,8 @@ export default function Dashboard() {
     const own = tracksFor(r.id)
     const question =
       own.length > 0
-        ? `Slet "${r.title}" og de ${own.length} numre? Det kan ikke fortrydes.`
-        : `Slet "${r.title}"? Det kan ikke fortrydes.`
+        ? t('dashboard.releases.deleteConfirmWithTracks', { title: r.title, count: own.length })
+        : t('dashboard.deleteConfirmTitled', { title: r.title })
     if (!window.confirm(question)) return
     setReleaseError('')
     try {
@@ -397,7 +403,7 @@ export default function Dashboard() {
       if (editingReleaseId === r.id) setEditingReleaseId(null)
       loadAll(session.user.id)
     } catch (err) {
-      setReleaseError(err.message || 'Noget gik galt. Prøv igen.')
+      setReleaseError(err.message || t('common.somethingWrong'))
     }
   }
 
@@ -414,14 +420,14 @@ export default function Dashboard() {
     return e.title !== undefined && e.title.trim() !== t.title
   }
 
-  async function saveTrack(t) {
-    const title = trackValue(t, 'title').trim()
+  async function saveTrack(tr) {
+    const title = trackValue(tr, 'title').trim()
     if (!title) {
-      setTrackUploadError('Titlen må ikke være tom.')
+      setTrackUploadError(t('dashboard.releases.titleEmpty'))
       return
     }
-    setSavingTrackId(t.id)
-    const { error } = await supabase.from('tracks').update({ title }).eq('id', t.id)
+    setSavingTrackId(tr.id)
+    const { error } = await supabase.from('tracks').update({ title }).eq('id', tr.id)
     setSavingTrackId(null)
     if (error) {
       setTrackUploadError(error.message)
@@ -429,16 +435,16 @@ export default function Dashboard() {
     }
     setTrackEdits((prev) => {
       const next = { ...prev }
-      delete next[t.id]
+      delete next[tr.id]
       return next
     })
     loadAll(session.user.id)
   }
 
-  async function deleteTrack(t) {
-    if (!window.confirm(`Slet "${t.title}"? Det kan ikke fortrydes.`)) return
-    await supabase.storage.from('tracks').remove([t.audio_path])
-    await supabase.from('tracks').delete().eq('id', t.id)
+  async function deleteTrack(tr) {
+    if (!window.confirm(t('dashboard.deleteConfirmTitled', { title: tr.title }))) return
+    await supabase.storage.from('tracks').remove([tr.audio_path])
+    await supabase.from('tracks').delete().eq('id', tr.id)
     loadAll(session.user.id)
   }
 
@@ -448,7 +454,7 @@ export default function Dashboard() {
     if (chosen && chosen.size > MAX_UPLOAD_BYTES) {
       setNewTrackFile(null)
       e.target.value = ''
-      setTrackUploadError(tooBigMessage(chosen.size))
+      setTrackUploadError(tooBigMessage(chosen.size, t))
       return
     }
     setNewTrackFile(chosen)
@@ -460,17 +466,17 @@ export default function Dashboard() {
     setTrackUploadError('')
     const titleValue = newTrackTitle.trim()
     if (!titleValue || !newTrackFile) {
-      setTrackUploadError('Angiv en titel og vælg en lydfil.')
+      setTrackUploadError(t('dashboard.tracks.needTitleAndFile'))
       return
     }
     if (newTrackFile.size > MAX_UPLOAD_BYTES) {
-      setTrackUploadError(tooBigMessage(newTrackFile.size))
+      setTrackUploadError(tooBigMessage(newTrackFile.size, t))
       return
     }
     const existing = tracksFor(release.id)
     if (existing.length >= RELEASE_TYPE_LIMITS[release.type]) {
       setTrackUploadError(
-        `Denne ${RELEASE_TYPE_LABELS[release.type]} har nået grænsen på ${RELEASE_TYPE_LIMITS[release.type]} numre.`
+        t('dashboard.releases.atLimit', { type: t(`type.${release.type}`), limit: RELEASE_TYPE_LIMITS[release.type] })
       )
       return
     }
@@ -479,7 +485,7 @@ export default function Dashboard() {
     const { error: uploadErr } = await supabase.storage.from('tracks').upload(path, newTrackFile)
     if (uploadErr) {
       const message = /maximum allowed size|too large|exceeded/i.test(uploadErr.message)
-        ? tooBigMessage(newTrackFile.size)
+        ? tooBigMessage(newTrackFile.size, t)
         : uploadErr.message
       setTrackUploadError(message)
       setUploadingTrack(false)
@@ -505,17 +511,14 @@ export default function Dashboard() {
     loadAll(session.user.id)
   }
 
-  if (session === undefined || (session && !profile)) return <p className="notice">Henter...</p>
+  if (session === undefined || (session && !profile)) return <p className="notice">{t('common.loading')}</p>
   if (!profile) return null
 
   if (!canPublish(profile.role)) {
     return (
       <section>
-        <h2>Udgivelser</h2>
-        <p className="notice" style={{ marginTop: 12 }}>
-          Du er logget ind som lytter. Kun publishers kan oprette kunstnere og udgive musik. Opret en
-          konto som publisher, eller bed en admin om at ændre din rolle.
-        </p>
+        <h2>{t('nav.releases')}</h2>
+        <p className="notice" style={{ marginTop: 12 }}>{t('dashboard.listenerBlocked')}</p>
       </section>
     )
   }
@@ -524,30 +527,28 @@ export default function Dashboard() {
 
   return (
     <section>
-      <h2>Udgivelser — {profile.display_name}</h2>
+      <h2>{t('nav.releases')} — {profile.display_name}</h2>
 
       {/* ----- Mine kunstnere ----- */}
       <div className="panel" style={{ marginTop: 20, marginBottom: 32 }}>
         <h3 style={{ fontSize: 16, marginBottom: 4 }}>
-          Mine kunstnere ({artists.length} / {MAX_ARTISTS})
+          {t('dashboard.artists.title', { count: artists.length, max: MAX_ARTISTS })}
         </h3>
-        <p className="notice" style={{ marginBottom: 16 }}>
-          Opret en kunstner for hver, du udgiver musik for.
-        </p>
+        <p className="notice" style={{ marginBottom: 16 }}>{t('dashboard.artists.subtitle')}</p>
 
         {artists.length === 0 && (
-          <p className="notice" style={{ marginBottom: 16 }}>Du har ikke oprettet nogen kunstnere endnu.</p>
+          <p className="notice" style={{ marginBottom: 16 }}>{t('dashboard.artists.empty')}</p>
         )}
 
         {artists.map((a) =>
           editingArtistId === a.id ? (
             <div key={a.id} style={{ marginBottom: 16 }}>
               <div className="field">
-                <label>Navn</label>
+                <label>{t('signup.name')}</label>
                 <input maxLength={80} value={editArtistName} onChange={(e) => setEditArtistName(e.target.value)} />
               </div>
               <div className="field">
-                <label>Om kunstneren</label>
+                <label>{t('dashboard.artists.bio')}</label>
                 <textarea
                   maxLength={500}
                   value={editArtistBio}
@@ -556,18 +557,19 @@ export default function Dashboard() {
                 />
               </div>
               <ImagePicker
-                label="Billede"
+                label={t('dashboard.imageLabel')}
                 currentUrl={imagePublicUrl(supabase, a.image_path)}
                 onChange={pickImage(setEditArtistImage)}
                 disabled={savingArtist}
+                hint={t('dashboard.imagePicker.hint', { max: MAX_IMAGE_MB })}
               />
               <Msg msg={artistError} />
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn" type="button" disabled={savingArtist} onClick={() => saveArtist(a)}>
-                  {savingArtist ? 'Gemmer...' : 'Gem ændringer'}
+                  {savingArtist ? t('common.saving') : t('common.save')}
                 </button>
                 <button className="btn ghost" type="button" onClick={() => setEditingArtistId(null)}>
-                  Annuller
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -578,15 +580,19 @@ export default function Dashboard() {
                 <div>
                   <Link href={`/artist/${a.id}`}>{a.name}</Link>
                   {a.bio && <div className="notice">{a.bio}</div>}
-                  <div className="notice">{releases.filter((r) => r.artist_id === a.id).length} udgivelser</div>
+                  <div className="notice">
+                    {t('dashboard.artists.releaseCount', {
+                      count: releases.filter((r) => r.artist_id === a.id).length,
+                    })}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn ghost" type="button" onClick={() => startEditArtist(a)}>
-                  Redigér
+                  {t('common.edit')}
                 </button>
                 <button className="btn ghost" type="button" onClick={() => deleteArtist(a)}>
-                  Slet
+                  {t('common.delete')}
                 </button>
               </div>
             </div>
@@ -594,9 +600,9 @@ export default function Dashboard() {
         )}
 
         <form onSubmit={createArtist} style={{ marginTop: 20 }}>
-          <h4 style={{ fontSize: 15, marginBottom: 12 }}>Opret ny kunstner</h4>
+          <h4 style={{ fontSize: 15, marginBottom: 12 }}>{t('dashboard.artists.createTitle')}</h4>
           <div className="field">
-            <label>Navn</label>
+            <label>{t('signup.name')}</label>
             <input
               maxLength={80}
               value={newArtistName}
@@ -605,7 +611,7 @@ export default function Dashboard() {
             />
           </div>
           <div className="field">
-            <label>Om kunstneren (valgfrit)</label>
+            <label>{t('dashboard.artists.bioOptional')}</label>
             <textarea
               maxLength={500}
               value={newArtistBio}
@@ -615,33 +621,37 @@ export default function Dashboard() {
             />
           </div>
           <ImagePicker
-            label="Billede"
+            label={t('dashboard.imageLabel')}
             currentUrl={null}
             onChange={pickImage(setNewArtistImage)}
             disabled={artistLimitReached}
+            hint={t('dashboard.imagePicker.hint', { max: MAX_IMAGE_MB })}
           />
           {artistLimitReached && (
-            <div className="error-msg">
-              Du har nået grænsen på {MAX_ARTISTS} kunstnere. Slet en, hvis du vil oprette en ny.
-            </div>
+            <div className="error-msg">{t('dashboard.artists.limitReached', { max: MAX_ARTISTS })}</div>
           )}
           <Msg msg={artistError} />
           <button className="btn" type="submit" disabled={creatingArtist || artistLimitReached}>
-            {creatingArtist ? 'Opretter...' : 'Opret kunstner'}
+            {creatingArtist ? t('common.saving') : t('dashboard.artists.createButton')}
           </button>
         </form>
       </div>
 
       {/* ----- Mine udgivelser ----- */}
       <div className="panel" style={{ marginBottom: 32 }}>
-        <h3 style={{ fontSize: 16, marginBottom: 4 }}>Mine udgivelser ({releases.length})</h3>
+        <h3 style={{ fontSize: 16, marginBottom: 4 }}>
+          {t('dashboard.releases.title', { count: releases.length })}
+        </h3>
         <p className="notice" style={{ marginBottom: 16 }}>
-          Et Album kan have op til {RELEASE_TYPE_LIMITS.album} numre, en EP op til {RELEASE_TYPE_LIMITS.ep},
-          og en Single præcis {RELEASE_TYPE_LIMITS.single}.
+          {t('dashboard.releases.limitsHint', {
+            album: RELEASE_TYPE_LIMITS.album,
+            ep: RELEASE_TYPE_LIMITS.ep,
+            single: RELEASE_TYPE_LIMITS.single,
+          })}
         </p>
 
         {releases.length === 0 && (
-          <p className="notice" style={{ marginBottom: 16 }}>Du har ikke oprettet nogen udgivelser endnu.</p>
+          <p className="notice" style={{ marginBottom: 16 }}>{t('dashboard.releases.empty')}</p>
         )}
 
         {releases.map((r) => {
@@ -658,8 +668,9 @@ export default function Dashboard() {
                   <div>
                     <Link href={`/release/${r.id}`}>{r.title}</Link>
                     <div className="notice">
-                      {r.artists?.name || 'Ukendt kunstner'} · {RELEASE_TYPE_LABELS[r.type]}
-                      {r.genre ? ` · ${r.genre}` : ''} · {releaseTracks.length}/{limit} numre
+                      {r.artists?.name || t('home.unknownArtist')} · {t(`type.${r.type}`)}
+                      {r.genre ? ` · ${r.genre}` : ''} ·{' '}
+                      {t('dashboard.releases.progress', { count: releaseTracks.length, limit })}
                     </div>
                   </div>
                 </div>
@@ -669,10 +680,10 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => (isEditing ? closeEditRelease() : startEditRelease(r))}
                   >
-                    {isEditing ? 'Luk' : 'Redigér'}
+                    {isEditing ? t('common.close') : t('common.edit')}
                   </button>
                   <button className="btn ghost" type="button" onClick={() => deleteRelease(r)}>
-                    Slet
+                    {t('common.delete')}
                   </button>
                 </div>
               </div>
@@ -680,72 +691,73 @@ export default function Dashboard() {
               {isEditing && (
                 <div style={{ marginTop: 12, paddingLeft: 4 }}>
                   <div className="field">
-                    <label>Titel</label>
+                    <label>{t('common.title')}</label>
                     <input maxLength={120} value={editReleaseTitle} onChange={(e) => setEditReleaseTitle(e.target.value)} />
                   </div>
                   <div className="field">
-                    <label>Type</label>
+                    <label>{t('common.type')}</label>
                     <select
                       style={controlStyle}
                       value={editReleaseType}
                       onChange={(e) => setEditReleaseType(e.target.value)}
                     >
-                      {Object.entries(RELEASE_TYPE_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
+                      {RELEASE_TYPES.map((value) => (
+                        <option key={value} value={value}>{t(`type.${value}`)}</option>
                       ))}
                     </select>
                   </div>
                   <div className="field">
-                    <label>Genre</label>
+                    <label>{t('dashboard.releases.genreLabel')}</label>
                     <input
                       value={editReleaseGenre}
                       onChange={(e) => setEditReleaseGenre(e.target.value)}
-                      placeholder="fx Ambient, Pop, Rock"
+                      placeholder={t('dashboard.releases.genrePlaceholder')}
                     />
                   </div>
                   <ImagePicker
-                    label="Cover art"
+                    label={t('dashboard.coverArtLabel')}
                     currentUrl={imagePublicUrl(supabase, r.cover_path)}
                     onChange={pickImage(setEditReleaseImage)}
                     disabled={savingRelease}
+                    hint={t('dashboard.imagePicker.hint', { max: MAX_IMAGE_MB })}
                   />
                   <Msg msg={releaseError} />
                   <button className="btn" type="button" disabled={savingRelease} onClick={() => saveRelease(r)}>
-                    {savingRelease ? 'Gemmer...' : 'Gem ændringer'}
+                    {savingRelease ? t('common.saving') : t('common.save')}
                   </button>
 
-                  <h4 style={{ fontSize: 14, margin: '24px 0 12px' }}>Numre</h4>
+                  <h4 style={{ fontSize: 14, margin: '24px 0 12px' }}>{t('dashboard.releases.tracksHeading')}</h4>
                   {releaseTracks.length === 0 && (
-                    <p className="notice" style={{ marginBottom: 12 }}>Ingen numre endnu.</p>
+                    <p className="notice" style={{ marginBottom: 12 }}>{t('dashboard.releases.noTracksYet')}</p>
                   )}
-                  {releaseTracks.map((t) => (
-                    <div key={t.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 10, flexWrap: 'wrap' }}>
+                  {releaseTracks.map((tr) => (
+                    <div key={tr.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 10, flexWrap: 'wrap' }}>
                       <div className="field" style={{ margin: 0, flex: '1 1 220px' }}>
-                        <label>Titel</label>
-                        <input value={trackValue(t, 'title')} onChange={(e) => setTrackField(t, 'title', e.target.value)} />
+                        <label>{t('common.title')}</label>
+                        <input value={trackValue(tr, 'title')} onChange={(e) => setTrackField(tr, 'title', e.target.value)} />
                       </div>
                       <button
                         className="btn ghost"
                         type="button"
-                        disabled={!trackDirty(t) || savingTrackId === t.id}
-                        onClick={() => saveTrack(t)}
+                        disabled={!trackDirty(tr) || savingTrackId === tr.id}
+                        onClick={() => saveTrack(tr)}
                       >
-                        {savingTrackId === t.id ? 'Gemmer...' : 'Gem'}
+                        {savingTrackId === tr.id ? t('common.saving') : t('common.save')}
                       </button>
-                      <button className="btn ghost" type="button" onClick={() => deleteTrack(t)}>
-                        Slet
+                      <button className="btn ghost" type="button" onClick={() => deleteTrack(tr)}>
+                        {t('common.delete')}
                       </button>
                     </div>
                   ))}
 
                   <form onSubmit={(e) => handleUploadTrack(e, r)} style={{ marginTop: 16 }}>
-                    <h4 style={{ fontSize: 14, marginBottom: 12 }}>Tilføj nummer</h4>
+                    <h4 style={{ fontSize: 14, marginBottom: 12 }}>{t('dashboard.releases.addTrack')}</h4>
                     <div className="field">
-                      <label>Titel</label>
+                      <label>{t('common.title')}</label>
                       <input disabled={atLimit} value={newTrackTitle} onChange={(e) => setNewTrackTitle(e.target.value)} />
                     </div>
                     <div className="field">
-                      <label>Lydfil</label>
+                      <label>{t('dashboard.releases.audioFileLabel')}</label>
                       <input
                         type="file"
                         accept=".mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,audio/*"
@@ -753,17 +765,17 @@ export default function Dashboard() {
                         onChange={handleNewTrackFile}
                       />
                       <div className="notice" style={{ marginTop: 6 }}>
-                        Maks. {MAX_UPLOAD_MB} MB. MP3 og FLAC fylder langt mindre end WAV.
+                        {t('dashboard.releases.uploadHint', { max: MAX_UPLOAD_MB })}
                       </div>
                     </div>
                     {atLimit && (
                       <div className="error-msg">
-                        Denne {RELEASE_TYPE_LABELS[r.type]} har nået grænsen på {limit} numre.
+                        {t('dashboard.releases.atLimit', { type: t(`type.${r.type}`), limit })}
                       </div>
                     )}
                     <Msg msg={trackUploadError} />
                     <button className="btn" type="submit" disabled={atLimit || uploadingTrack}>
-                      {uploadingTrack ? 'Uploader...' : 'Tilføj nummer'}
+                      {uploadingTrack ? t('dashboard.releases.uploading') : t('dashboard.releases.addTrack')}
                     </button>
                   </form>
                 </div>
@@ -773,14 +785,12 @@ export default function Dashboard() {
         })}
 
         {artists.length === 0 ? (
-          <p className="notice" style={{ marginTop: 8 }}>
-            Opret en kunstner ovenfor, før du kan oprette en udgivelse.
-          </p>
+          <p className="notice" style={{ marginTop: 8 }}>{t('dashboard.releases.needArtistFirst')}</p>
         ) : (
           <form onSubmit={createRelease} style={{ marginTop: 20 }}>
-            <h4 style={{ fontSize: 15, marginBottom: 12 }}>Opret ny udgivelse</h4>
+            <h4 style={{ fontSize: 15, marginBottom: 12 }}>{t('dashboard.releases.createHeading')}</h4>
             <div className="field">
-              <label>Kunstner</label>
+              <label>{t('dashboard.releases.artistLabel')}</label>
               <select style={controlStyle} value={newReleaseArtistId} onChange={(e) => setNewReleaseArtistId(e.target.value)}>
                 {artists.map((a) => (
                   <option key={a.id} value={a.id}>{a.name}</option>
@@ -788,31 +798,36 @@ export default function Dashboard() {
               </select>
             </div>
             <div className="field">
-              <label>Titel</label>
+              <label>{t('common.title')}</label>
               <input maxLength={120} value={newReleaseTitle} onChange={(e) => setNewReleaseTitle(e.target.value)} />
             </div>
             <div className="field">
-              <label>Type</label>
+              <label>{t('common.type')}</label>
               <select style={controlStyle} value={newReleaseType} onChange={(e) => setNewReleaseType(e.target.value)}>
-                {Object.entries(RELEASE_TYPE_LABELS).map(([value, label]) => (
+                {RELEASE_TYPES.map((value) => (
                   <option key={value} value={value}>
-                    {label} (op til {RELEASE_TYPE_LIMITS[value]} numre)
+                    {t('dashboard.releases.typeOption', { label: t(`type.${value}`), limit: RELEASE_TYPE_LIMITS[value] })}
                   </option>
                 ))}
               </select>
             </div>
             <div className="field">
-              <label>Genre</label>
+              <label>{t('dashboard.releases.genreLabel')}</label>
               <input
                 value={newReleaseGenre}
                 onChange={(e) => setNewReleaseGenre(e.target.value)}
-                placeholder="fx Ambient, Pop, Rock"
+                placeholder={t('dashboard.releases.genrePlaceholder')}
               />
             </div>
-            <ImagePicker label="Cover art" currentUrl={null} onChange={pickImage(setNewReleaseImage)} />
+            <ImagePicker
+              label={t('dashboard.coverArtLabel')}
+              currentUrl={null}
+              onChange={pickImage(setNewReleaseImage)}
+              hint={t('dashboard.imagePicker.hint', { max: MAX_IMAGE_MB })}
+            />
             <Msg msg={releaseError} />
             <button className="btn" type="submit" disabled={creatingRelease}>
-              {creatingRelease ? 'Opretter...' : 'Opret udgivelse'}
+              {creatingRelease ? t('common.saving') : t('dashboard.releases.createButton')}
             </button>
           </form>
         )}

@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { canPublish } from '../lib/shared'
+import { useLanguage } from './LanguageProvider'
 
 export default function Nav() {
   const [session, setSession] = useState(null)
   const [role, setRole] = useState(null)
   const router = useRouter()
+  const { lang, setLang, t } = useLanguage()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -40,22 +42,43 @@ export default function Nav() {
     <header className="top">
       <div className="top-inner">
         <Link href="/" className="logo">Campifai</Link>
-        <nav>
-          <Link href="/">Gennemse</Link>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <Link href="/">{t('nav.browse')}</Link>
           {session ? (
             <>
-              <Link href="/playlists">Playlister</Link>
-              {canPublish(role) && <Link href="/dashboard">Udgivelser</Link>}
-              {role === 'admin' && <Link href="/admin">Admin</Link>}
-              <Link href="/account">Min konto</Link>
-              <button onClick={logOut} className="link-btn">Log ud</button>
+              <Link href="/playlists">{t('nav.playlists')}</Link>
+              {canPublish(role) && <Link href="/dashboard">{t('nav.releases')}</Link>}
+              {role === 'admin' && <Link href="/admin">{t('nav.admin')}</Link>}
+              <Link href="/account">{t('nav.account')}</Link>
+              <button onClick={logOut} className="link-btn">{t('nav.logout')}</button>
             </>
           ) : (
             <>
-              <Link href="/login">Log ind</Link>
-              <Link href="/signup">Opret konto</Link>
+              <Link href="/login">{t('nav.login')}</Link>
+              <Link href="/signup">{t('nav.signup')}</Link>
             </>
           )}
+          <span style={{ display: 'flex', gap: 4, fontSize: 13 }}>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => setLang('da')}
+              style={{ fontWeight: lang === 'da' ? 700 : 400 }}
+              aria-current={lang === 'da'}
+            >
+              DA
+            </button>
+            <span aria-hidden="true">/</span>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => setLang('en')}
+              style={{ fontWeight: lang === 'en' ? 700 : 400 }}
+              aria-current={lang === 'en'}
+            >
+              EN
+            </button>
+          </span>
         </nav>
       </div>
     </header>

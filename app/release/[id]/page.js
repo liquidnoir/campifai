@@ -3,9 +3,10 @@ import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
+import { imagePublicUrl } from '../../../lib/shared'
 import { hasReleaseAccess } from '../../../lib/purchases'
 import { downloadReleaseZip } from '../../../lib/zipDownload'
+import { useLanguage } from '../../../components/LanguageProvider'
 import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 import QueuePlayer from '../../../components/QueuePlayer'
@@ -15,6 +16,7 @@ import PurchaseGate from '../../../components/PurchaseGate'
 const SIGNED_URL_SECONDS = 60 * 60 * 6
 
 function ReleaseContent() {
+  const { t } = useLanguage()
   const { id } = useParams()
   const searchParams = useSearchParams()
   const highlightId = searchParams.get('t')
@@ -100,18 +102,18 @@ function ReleaseContent() {
     setDownload({ busy: true, progress: null, error: null })
     try {
       const playable = tracks.filter((t) => t.url)
-      if (playable.length === 0) throw new Error('Ingen numre at downloade.')
+      if (playable.length === 0) throw new Error(t('release.noTracksToDownload'))
       await downloadReleaseZip(release, playable, (current, total) => {
         setDownload({ busy: true, progress: { current, total }, error: null })
-      })
+      }, t)
       setDownload({ busy: false, progress: null, error: null })
     } catch (err) {
-      setDownload({ busy: false, progress: null, error: err.message || 'Download fejlede. Prøv igen.' })
+      setDownload({ busy: false, progress: null, error: err.message || t('release.downloadFailed') })
     }
   }
 
-  if (loading) return <p className="notice">Henter...</p>
-  if (!release) return <p className="notice">Udgivelse ikke fundet.</p>
+  if (loading) return <p className="notice">{t('common.loading')}</p>
+  if (!release) return <p className="notice">{t('release.notFound')}</p>
 
   const coverUrl = imagePublicUrl(supabase, release.cover_path)
   const publisherName = release.profiles?.display_name
@@ -145,19 +147,19 @@ function ReleaseContent() {
           <div className="section-head" style={{ marginBottom: 0 }}>
             <div>
               <div className="notice">
-                {RELEASE_TYPE_LABELS[release.type] || release.type}
+                {t(`type.${release.type}`) || release.type}
                 {release.genre ? ` · ${release.genre}` : ''}
               </div>
               <h2 style={{ marginTop: 4 }}>{release.title}</h2>
               <p className="notice" style={{ marginTop: 4 }}>
-                <Link href={`/artist/${release.artist_id}`}>{artistName || 'Ukendt kunstner'}</Link>
-                {showPublisher && <> · Udgivet af {publisherName}</>}
+                <Link href={`/artist/${release.artist_id}`}>{artistName || t('home.unknownArtist')}</Link>
+                {showPublisher && <> · {t('artist.publishedBy', { name: publisherName })}</>}
               </p>
             </div>
             <ShareButton
               path={`/release/${release.id}`}
               title={`${release.title} — ${artistName || ''}`}
-              label="Del udgivelse"
+              label={t('release.shareRelease')}
             />
           </div>
         </div>
@@ -168,7 +170,7 @@ function ReleaseContent() {
           <PurchaseGate
             scope="release"
             releaseId={release.id}
-            itemLabel={`"${release.title}"`}
+            itemLabel={t('purchase.thisRelease', { title: release.title })}
             hasAccess={hasAccess}
             onGranted={checkAccess}
           />
@@ -177,9 +179,9 @@ function ReleaseContent() {
               <button className="btn ghost" type="button" disabled={download.busy} onClick={handleDownload}>
                 {download.busy
                   ? download.progress
-                    ? `Henter ${download.progress.current}/${download.progress.total}...`
-                    : 'Forbereder...'
-                  : 'Download (zip)'}
+                    ? t('common.fetching', { current: download.progress.current, total: download.progress.total })
+                    : t('common.preparing')
+                  : t('common.download')}
               </button>
               {download.error && <div className="error-msg">{download.error}</div>}
             </div>
@@ -188,7 +190,7 @@ function ReleaseContent() {
       )}
 
       <div style={{ marginTop: 8 }}>
-        {tracks.length === 0 && <p className="notice">Ingen numre i denne udgivelse endnu.</p>}
+        {tracks.length === 0 && <p className="notice">{t('release.noTracksYet')}</p>}
         {tracks.length > 0 && canInteract && (
           <QueuePlayer
             tracks={tracks.map((t) => ({ id: t.id, title: t.title, url: t.url }))}
@@ -199,13 +201,13 @@ function ReleaseContent() {
                 <AddToPlaylistButton trackId={t.id} />
                 {release.genre && (
                   <Link href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${t.id}`} className="btn ghost">
-                    Radio
+                    {t('release.radio')}
                   </Link>
                 )}
                 <ShareButton
                   path={`/release/${release.id}?t=${t.id}`}
                   title={`${t.title} — ${artistName || ''}`}
-                  label="Del"
+                  label={t('release.shareTrack')}
                 />
               </>
             )}
@@ -216,7 +218,7 @@ function ReleaseContent() {
             {tracks.map((t) => (
               <div className="track-row" key={t.id}>
                 <div className="ttitle">{t.title}</div>
-                <span className="notice">Log ind for at lytte.</span>
+                <span className="notice">{t('release.loginToListen')}</span>
               </div>
             ))}
           </div>
@@ -227,8 +229,9 @@ function ReleaseContent() {
 }
 
 export default function ReleasePage() {
+  const { t } = useLanguage()
   return (
-    <Suspense fallback={<p className="notice">Henter...</p>}>
+    <Suspense fallback={<p className="notice">{t('common.loading')}</p>}>
       <ReleaseContent />
     </Suspense>
   )

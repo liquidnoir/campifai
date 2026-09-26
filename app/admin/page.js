@@ -3,12 +3,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import {
-  ROLE_LABELS,
-  controlStyle,
-  removeFolderFiles,
-  removeFolderImages,
-} from '../../lib/shared'
+import { controlStyle, removeFolderFiles, removeFolderImages } from '../../lib/shared'
+import { useLanguage } from '../../components/LanguageProvider'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -16,8 +12,8 @@ function Msg({ msg }) {
   return <div style={{ color: '#4B5A3E', fontSize: 14, marginBottom: 12 }}>{msg.text}</div>
 }
 
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString('da-DK') : ''
+function formatDate(value, lang) {
+  return value ? new Date(value).toLocaleDateString(lang === 'da' ? 'da-DK' : 'en-GB') : ''
 }
 
 const gridStyle = {
@@ -27,6 +23,7 @@ const gridStyle = {
 }
 
 export default function AdminPage() {
+  const { t, lang } = useLanguage()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
   const [me, setMe] = useState(null)
@@ -109,11 +106,11 @@ export default function AdminPage() {
     const name = userValue(u, 'display_name').trim()
     const role = userValue(u, 'role')
     if (!name) {
-      setMsg({ type: 'error', text: 'Navnet må ikke være tomt.' })
+      setMsg({ type: 'error', text: t('account.nameEmpty') })
       return
     }
     if (role !== u.role && role === 'admin') {
-      if (!window.confirm(`Gør ${u.display_name} til admin? Admins har fuld adgang til alle brugere.`)) return
+      if (!window.confirm(t('admin.confirmMakeAdmin', { name: u.display_name }))) return
     }
     setBusy(u.id)
     const changes = { display_name: name }
@@ -124,7 +121,7 @@ export default function AdminPage() {
       setMsg({ type: 'error', text: error.message })
       return
     }
-    setMsg({ type: 'ok', text: `${name} er opdateret.` })
+    setMsg({ type: 'ok', text: t('admin.updated', { name }) })
     await loadUsers()
   }
 
@@ -132,25 +129,25 @@ export default function AdminPage() {
     setMsg(null)
     if (u.id === session.user.id) return
     if (u.role === 'admin') {
-      setMsg({ type: 'error', text: 'Fjern først adminrollen, før du sletter en admin.' })
+      setMsg({ type: 'error', text: t('admin.removeAdminRoleFirst') })
       return
     }
-    const parts = [`Slet ${u.display_name} (${u.email})`]
-    if (u.artist_count > 0) parts.push(`${u.artist_count} kunstnere`)
-    if (u.release_count > 0) parts.push(`${u.release_count} udgivelser`)
-    if (u.track_count > 0) parts.push(`${u.track_count} numre`)
-    const question = parts.join(', ') + '? Det kan ikke fortrydes.'
+    const parts = [t('admin.deleteUserPrefix', { name: u.display_name, email: u.email })]
+    if (u.artist_count > 0) parts.push(t('admin.artistCount', { count: u.artist_count }))
+    if (u.release_count > 0) parts.push(t('dashboard.artists.releaseCount', { count: u.release_count }))
+    if (u.track_count > 0) parts.push(t('release.trackCount', { count: u.track_count }))
+    const question = parts.join(', ') + t('admin.cannotBeUndoneSuffix')
     if (!window.confirm(question)) return
     setBusy(u.id)
     try {
-      await removeFolderFiles(supabase, u.id)
-      await removeFolderImages(supabase, u.id)
+      await removeFolderFiles(supabase, u.id, t)
+      await removeFolderImages(supabase, u.id, t)
       const { error } = await supabase.rpc('admin_delete_user', { target: u.id })
       if (error) throw error
-      setMsg({ type: 'ok', text: `${u.display_name} er slettet.` })
+      setMsg({ type: 'ok', text: t('admin.deleted', { name: u.display_name }) })
       await Promise.all([loadUsers(), loadArtists()])
     } catch (err) {
-      setMsg({ type: 'error', text: err.message || 'Noget gik galt. Prøv igen.' })
+      setMsg({ type: 'error', text: err.message || t('common.somethingWrong') })
     }
     setBusy('')
   }
@@ -177,7 +174,7 @@ export default function AdminPage() {
     const name = artistValue(a, 'name').trim()
     const bio = artistValue(a, 'bio').trim()
     if (!name) {
-      setMsg({ type: 'error', text: 'Navnet må ikke være tomt.' })
+      setMsg({ type: 'error', text: t('account.nameEmpty') })
       return
     }
     setBusy(a.id)
@@ -190,7 +187,7 @@ export default function AdminPage() {
       setMsg({ type: 'error', text: error.message })
       return
     }
-    setMsg({ type: 'ok', text: `${name} er opdateret.` })
+    setMsg({ type: 'ok', text: t('admin.updated', { name }) })
     await loadArtists()
   }
 
@@ -200,8 +197,8 @@ export default function AdminPage() {
     const releaseCount = a.releases?.length ?? 0
     const question =
       trackCount > 0
-        ? `Slet ${a.name}, med ${releaseCount} udgivelser og ${trackCount} numre? Det kan ikke fortrydes.`
-        : `Slet ${a.name}? Det kan ikke fortrydes.`
+        ? t('dashboard.artists.deleteConfirmWithContent', { name: a.name, releases: releaseCount, tracks: trackCount })
+        : t('dashboard.deleteConfirmNamed', { name: a.name })
     if (!window.confirm(question)) return
     setBusy(a.id)
     try {
@@ -224,20 +221,20 @@ export default function AdminPage() {
       }
       const { error } = await supabase.from('artists').delete().eq('id', a.id)
       if (error) throw error
-      setMsg({ type: 'ok', text: `${a.name} er slettet.` })
+      setMsg({ type: 'ok', text: t('admin.deleted', { name: a.name }) })
       await Promise.all([loadArtists(), loadUsers()])
     } catch (err) {
-      setMsg({ type: 'error', text: err.message || 'Noget gik galt. Prøv igen.' })
+      setMsg({ type: 'error', text: err.message || t('common.somethingWrong') })
     }
     setBusy('')
   }
 
-  if (session === undefined || !checked) return <p className="notice">Henter...</p>
+  if (session === undefined || !checked) return <p className="notice">{t('common.loading')}</p>
   if (me?.role !== 'admin') {
     return (
       <section>
-        <h2>Admin</h2>
-        <p className="notice" style={{ marginTop: 12 }}>Du har ikke adgang til denne side.</p>
+        <h2>{t('nav.admin')}</h2>
+        <p className="notice" style={{ marginTop: 12 }}>{t('admin.noAccess')}</p>
       </section>
     )
   }
@@ -259,27 +256,31 @@ export default function AdminPage() {
 
   return (
     <section>
-      <h2>Admin</h2>
+      <h2>{t('nav.admin')}</h2>
       <p className="notice" style={{ marginTop: 8 }}>
-        {countRole('listener')} lyttere · {countRole('publisher')} publishers · {countRole('admin')} admins ·{' '}
-        {artists.length} kunstnere
+        {t('admin.summary', {
+          listeners: countRole('listener'),
+          publishers: countRole('publisher'),
+          admins: countRole('admin'),
+          artists: artists.length,
+        })}
       </p>
 
       <div style={{ display: 'flex', gap: 8, margin: '20px 0 12px' }}>
         <button className={tab === 'users' ? 'btn' : 'btn ghost'} onClick={() => setTab('users')}>
-          Brugere ({users.length})
+          {t('admin.tabs.users', { count: users.length })}
         </button>
         <button className={tab === 'artists' ? 'btn' : 'btn ghost'} onClick={() => setTab('artists')}>
-          Kunstnere ({artists.length})
+          {t('admin.tabs.artists', { count: artists.length })}
         </button>
         <Link href="/admin/collections" className="btn ghost">
-          Kollektioner
+          {t('admin.collectionsLink')}
         </Link>
       </div>
 
       <div className="field" style={{ maxWidth: 420 }}>
         <input
-          placeholder={tab === 'users' ? 'Søg på navn eller email' : 'Søg på kunstner eller publisher'}
+          placeholder={tab === 'users' ? t('admin.searchUsers') : t('admin.searchArtists')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -289,7 +290,7 @@ export default function AdminPage() {
 
       {tab === 'users' && (
         <div>
-          {shownUsers.length === 0 && <p className="notice">Ingen brugere fundet.</p>}
+          {shownUsers.length === 0 && <p className="notice">{t('admin.noUsersFound')}</p>}
           {shownUsers.map((u) => {
             const isMe = u.id === session.user.id
             const isAdminUser = u.role === 'admin'
@@ -297,7 +298,7 @@ export default function AdminPage() {
               <div className="panel" key={u.id} style={{ marginBottom: 12 }}>
                 <div style={gridStyle}>
                   <div className="field" style={{ margin: 0 }}>
-                    <label>Navn{isMe ? ' (dig)' : ''}</label>
+                    <label>{t('signup.name')}{isMe ? ` ${t('admin.youSuffix')}` : ''}</label>
                     <input
                       maxLength={60}
                       value={userValue(u, 'display_name')}
@@ -305,24 +306,27 @@ export default function AdminPage() {
                     />
                   </div>
                   <div className="field" style={{ margin: 0 }}>
-                    <label>Rolle</label>
+                    <label>{t('admin.role')}</label>
                     <select
                       style={controlStyle}
                       value={userValue(u, 'role')}
                       disabled={isMe}
                       onChange={(e) => setUserField(u, 'role', e.target.value)}
                     >
-                      {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
+                      <option value="listener">{t('role.listener')}</option>
+                      <option value="publisher">{t('role.publisher')}</option>
+                      <option value="admin">{t('role.admin')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="notice" style={{ marginTop: 8 }}>
-                  {u.email} · oprettet {formatDate(u.created_at)} · {u.artist_count} kunstnere ·{' '}
-                  {u.release_count} udgivelser · {u.track_count} numre
+                  {t('admin.userMeta', {
+                    email: u.email,
+                    date: formatDate(u.created_at, lang),
+                    artists: u.artist_count,
+                    releases: u.release_count,
+                    tracks: u.track_count,
+                  })}
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                   <button
@@ -331,7 +335,7 @@ export default function AdminPage() {
                     disabled={!userDirty(u) || busy === u.id}
                     onClick={() => saveUser(u)}
                   >
-                    {busy === u.id ? 'Arbejder...' : 'Gem ændringer'}
+                    {busy === u.id ? t('admin.working') : t('common.save')}
                   </button>
                   <button
                     className="btn ghost"
@@ -339,14 +343,14 @@ export default function AdminPage() {
                     disabled={isMe || isAdminUser || busy === u.id}
                     title={
                       isMe
-                        ? 'Du kan ikke slette dig selv'
+                        ? t('admin.cannotDeleteSelf')
                         : isAdminUser
-                          ? 'Fjern først adminrollen'
+                          ? t('admin.removeAdminRoleFirstTitle')
                           : undefined
                     }
                     onClick={() => deleteUser(u)}
                   >
-                    Slet bruger
+                    {t('admin.deleteUser')}
                   </button>
                 </div>
               </div>
@@ -357,12 +361,12 @@ export default function AdminPage() {
 
       {tab === 'artists' && (
         <div>
-          {shownArtists.length === 0 && <p className="notice">Ingen kunstnere fundet.</p>}
+          {shownArtists.length === 0 && <p className="notice">{t('admin.noArtistsFound')}</p>}
           {shownArtists.map((a) => (
             <div className="panel" key={a.id} style={{ marginBottom: 12 }}>
               <div style={gridStyle}>
                 <div className="field" style={{ margin: 0 }}>
-                  <label>Kunstner</label>
+                  <label>{t('admin.artistLabel')}</label>
                   <input
                     maxLength={80}
                     value={artistValue(a, 'name')}
@@ -370,7 +374,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <div className="field" style={{ margin: 0 }}>
-                  <label>Om kunstneren</label>
+                  <label>{t('dashboard.artists.bio')}</label>
                   <textarea
                     maxLength={500}
                     style={{ ...controlStyle, minHeight: 44, resize: 'vertical' }}
@@ -380,9 +384,13 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="notice" style={{ marginTop: 8 }}>
-                Publisher: {a.profiles?.display_name || 'ukendt'} · oprettet {formatDate(a.created_at)} ·{' '}
-                {a.releases?.length ?? 0} udgivelser · {a.tracks?.[0]?.count ?? 0} numre ·{' '}
-                <Link href={`/artist/${a.id}`}>Se side</Link>
+                {t('admin.artistMeta', {
+                  publisher: a.profiles?.display_name || t('admin.unknown'),
+                  date: formatDate(a.created_at, lang),
+                  releases: a.releases?.length ?? 0,
+                  tracks: a.tracks?.[0]?.count ?? 0,
+                })}{' '}
+                <Link href={`/artist/${a.id}`}>{t('admin.viewPage')}</Link>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <button
@@ -391,7 +399,7 @@ export default function AdminPage() {
                   disabled={!artistDirty(a) || busy === a.id}
                   onClick={() => saveArtist(a)}
                 >
-                  {busy === a.id ? 'Arbejder...' : 'Gem ændringer'}
+                  {busy === a.id ? t('admin.working') : t('common.save')}
                 </button>
                 <button
                   className="btn ghost"
@@ -399,7 +407,7 @@ export default function AdminPage() {
                   disabled={busy === a.id}
                   onClick={() => deleteArtist(a)}
                 >
-                  Slet kunstner
+                  {t('admin.deleteArtist')}
                 </button>
               </div>
             </div>
