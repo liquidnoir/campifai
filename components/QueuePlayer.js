@@ -12,8 +12,10 @@ function shuffle(arr) {
 
 // tracks: [{ id, title, artistName, releaseTitle, url }]
 // loop: ved sidste nummer, bland forfra og fortsæt (bruges til radio)
-// autoStart: forsøg at starte afspilning automatisk (bruges når siden selv
-// er navigeret til som følge af et klik, fx "Start radio")
+// autoStart: forsøg at starte afspilning automatisk, med det samme
+//   (bruges når siden selv er navigeret til som følge af et klik, fx "Start radio")
+// renderActions(track): valgfri, renderer ekstra knapper i hver rækkes højre side
+//   (klik der her bobler ikke op og skifter nummer)
 export default function QueuePlayer({
   tracks: initialTracks,
   startIndex = 0,
@@ -21,17 +23,26 @@ export default function QueuePlayer({
   loop = false,
   onTrackStart,
   emptyMessage = 'Ingen numre fundet.',
+  renderActions,
 }) {
   const [tracks, setTracks] = useState(initialTracks)
   const [index, setIndex] = useState(startIndex)
-  const [started, setStarted] = useState(!autoStart)
+  const [started, setStarted] = useState(autoStart)
   const [needsTap, setNeedsTap] = useState(false)
   const audioRef = useRef(null)
+  const startRowRef = useRef(null)
 
   useEffect(() => {
     setTracks(initialTracks)
     setIndex(startIndex)
   }, [initialTracks, startIndex])
+
+  // Rul den oprindeligt valgte række i syne, én gang ved indlæsning
+  // (fx når man åbner et delt link til et bestemt nummer)
+  useEffect(() => {
+    startRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!started) return
@@ -74,10 +85,12 @@ export default function QueuePlayer({
       <div className="panel" style={{ marginBottom: 20 }}>
         <div className="notice">Nu spiller</div>
         <div style={{ fontSize: 16, fontWeight: 500, marginTop: 4 }}>{current.title}</div>
-        <div className="notice">
-          {current.artistName}
-          {current.releaseTitle ? ` · ${current.releaseTitle}` : ''}
-        </div>
+        {(current.artistName || current.releaseTitle) && (
+          <div className="notice">
+            {current.artistName}
+            {current.releaseTitle ? ` · ${current.releaseTitle}` : ''}
+          </div>
+        )}
         {!started ? (
           <button className="btn" type="button" style={{ marginTop: 12 }} onClick={handleStart}>
             Afspil
@@ -98,9 +111,11 @@ export default function QueuePlayer({
                 Tryk for at starte afspilning
               </button>
             )}
-            <button className="btn ghost" type="button" style={{ marginTop: 12 }} onClick={handleEnded}>
-              Næste
-            </button>
+            {(tracks.length > 1 || loop) && (
+              <button className="btn ghost" type="button" style={{ marginTop: 12 }} onClick={handleEnded}>
+                Næste
+              </button>
+            )}
           </>
         )}
       </div>
@@ -111,15 +126,21 @@ export default function QueuePlayer({
             className="track-row"
             style={{
               cursor: 'pointer',
-              background: i === index && started ? 'var(--surface)' : undefined,
+              background: i === index ? 'var(--surface)' : undefined,
               borderRadius: 4,
             }}
             onClick={() => goTo(i)}
+            ref={i === startIndex ? startRowRef : null}
           >
             <div className="ttitle">
               {t.title}
-              <div className="notice">{t.artistName}</div>
+              {t.artistName && <div className="notice">{t.artistName}</div>}
             </div>
+            {renderActions && (
+              <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8 }}>
+                {renderActions(t)}
+              </div>
+            )}
           </div>
         ))}
       </div>

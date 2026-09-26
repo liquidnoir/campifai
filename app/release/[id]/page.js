@@ -1,11 +1,12 @@
 'use client'
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
 import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
+import QueuePlayer from '../../../components/QueuePlayer'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -18,8 +19,6 @@ function ReleaseContent() {
   const [release, setRelease] = useState(null)
   const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
-  const countedRef = useRef(new Set())
-  const highlightRef = useRef(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -28,12 +27,6 @@ function ReleaseContent() {
   useEffect(() => {
     if (id) loadRelease()
   }, [id])
-
-  useEffect(() => {
-    if (!loading && highlightId && highlightRef.current) {
-      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [loading, highlightId])
 
   async function loadRelease() {
     const { data: releaseData } = await supabase
@@ -73,11 +66,9 @@ function ReleaseContent() {
     setLoading(false)
   }
 
-  async function handlePlay(trackId) {
-    if (countedRef.current.has(trackId)) return
-    countedRef.current.add(trackId)
+  async function handleTrackStart(t) {
     try {
-      await supabase.rpc('increment_play_count', { track_id: trackId })
+      await supabase.rpc('increment_play_count', { track_id: t.id })
     } catch {
       // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
     }
@@ -91,6 +82,11 @@ function ReleaseContent() {
   const artistName = release.artists?.name
   const showPublisher = publisherName && publisherName.trim().toLowerCase() !== (artistName || '').trim().toLowerCase()
   const canInteract = Boolean(session)
+
+  const startIndex = Math.max(
+    0,
+    tracks.findIndex((t) => t.id === highlightId)
+  )
 
   return (
     <section>
@@ -133,35 +129,38 @@ function ReleaseContent() {
 
       <div style={{ marginTop: 28 }}>
         {tracks.length === 0 && <p className="notice">Ingen numre i denne udgivelse endnu.</p>}
-        {tracks.map((t) => (
-          <div
-            className="track-row"
-            key={t.id}
-            ref={t.id === highlightId ? highlightRef : null}
-            style={t.id === highlightId ? { background: 'var(--surface)', borderRadius: 4 } : undefined}
-          >
-            <div className="ttitle">{t.title}</div>
-            {t.url ? (
-              <audio controls preload="none" src={t.url} onPlay={() => handlePlay(t.id)} />
-            ) : (
-              <span className="notice">Log ind for at lytte.</span>
-            )}
-            {canInteract && (
-              <div style={{ display: 'flex', gap: 8 }}>
+        {tracks.length > 0 && canInteract && (
+          <QueuePlayer
+            tracks={tracks.map((t) => ({ id: t.id, title: t.title, url: t.url }))}
+            startIndex={startIndex}
+            onTrackStart={handleTrackStart}
+            renderActions={(t) => (
+              <>
                 <AddToPlaylistButton trackId={t.id} />
                 {release.genre && (
-                  <Link
-                    href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${t.id}`}
-                    className="btn ghost"
-                  >
+                  <Link href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${t.id}`} className="btn ghost">
                     Radio
                   </Link>
                 )}
-                <ShareButton path={`/release/${release.id}?t=${t.id}`} title={`${t.title} — ${artistName || ''}`} label="Del" />
-              </div>
+                <ShareButton
+                  path={`/release/${release.id}?t=${t.id}`}
+                  title={`${t.title} — ${artistName || ''}`}
+                  label="Del"
+                />
+              </>
             )}
+          />
+        )}
+        {tracks.length > 0 && !canInteract && (
+          <div>
+            {tracks.map((t) => (
+              <div className="track-row" key={t.id}>
+                <div className="ttitle">{t.title}</div>
+                <span className="notice">Log ind for at lytte.</span>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </section>
   )
