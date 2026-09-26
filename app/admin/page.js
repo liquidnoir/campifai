@@ -272,6 +272,9 @@ export default function AdminPage() {
         <button className={tab === 'artists' ? 'btn' : 'btn ghost'} onClick={() => setTab('artists')}>
           Kunstnere ({artists.length})
         </button>
+        <Link href="/admin/collections" className="btn ghost">
+          Kollektioner
+        </Link>
       </div>
 
       <div className="field" style={{ maxWidth: 420 }}>
