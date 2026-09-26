@@ -100,7 +100,7 @@ export default function Home() {
         .limit(10),
       supabase
         .from('collections')
-        .select('id, season, year, title, collection_releases ( count )')
+        .select('id, season, year, title, cover_path, collection_releases ( count )')
         .eq('enabled', true)
         .order('year', { ascending: false })
         .order('season', { ascending: true }),
@@ -126,7 +126,7 @@ export default function Home() {
   const searching = q.length > 0
 
   const filteredReleases = useMemo(() => {
-    if (!searching) return releases.slice(0, 24)
+    if (!searching) return []
     return releases.filter((r) => {
       if (r.title.toLowerCase().includes(q)) return true
       if ((r.artists?.name || '').toLowerCase().includes(q)) return true
@@ -178,32 +178,52 @@ export default function Home() {
         </div>
       </section>
 
-      <section>
-        <div className="section-head">
-          <h2>{searching ? t('home.releases.title') : t('home.releases.newTitle')}</h2>
-        </div>
-        {loading && <p className="notice">{t('common.loading')}</p>}
-        {!loading && searching && filteredReleases.length === 0 && (
-          <p className="notice">{t('home.releases.noMatch', { query })}</p>
-        )}
-        {!loading && !searching && releases.length === 0 && (
-          <p className="notice">{t('home.releases.empty')}</p>
-        )}
-        <div className="grid">
-          {filteredReleases.map((r) => (
-            <Link href={`/release/${r.id}`} key={r.id} className="sleeve">
-              <CoverTile imageUrl={imagePublicUrl(supabase, r.cover_path)} color={r.color} label={r.title} />
-              <div className="meta">
-                <div className="artist">{r.artists?.name || t('home.unknownArtist')}</div>
-                <div className="sub">
-                  {r.title} · {t(`type.${r.type}`) || r.type}
-                  {r.genre ? ` · ${r.genre}` : ''}
+      {searching ? (
+        <section>
+          <div className="section-head">
+            <h2>{t('home.releases.title')}</h2>
+          </div>
+          {loading && <p className="notice">{t('common.loading')}</p>}
+          {!loading && filteredReleases.length === 0 && (
+            <p className="notice">{t('home.releases.noMatch', { query })}</p>
+          )}
+          <div className="grid">
+            {filteredReleases.map((r) => (
+              <Link href={`/release/${r.id}`} key={r.id} className="sleeve">
+                <CoverTile imageUrl={imagePublicUrl(supabase, r.cover_path)} color={r.color} label={r.title} />
+                <div className="meta">
+                  <div className="artist">{r.artists?.name || t('home.unknownArtist')}</div>
+                  <div className="sub">
+                    {r.title} · {t(`type.${r.type}`) || r.type}
+                    {r.genre ? ` · ${r.genre}` : ''}
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section>
+          <div className="section-head">
+            <h2>{t('home.collections.title')}</h2>
+          </div>
+          {loading && <p className="notice">{t('common.loading')}</p>}
+          {!loading && collections.length === 0 && <p className="notice">{t('home.collections.empty')}</p>}
+          <div className="grid">
+            {collections.map((c) => (
+              <Link href={`/collections/${c.id}`} key={c.id} className="sleeve">
+                <CoverTile imageUrl={imagePublicUrl(supabase, c.cover_path)} label={collectionTitle(c, t)} />
+                <div className="meta">
+                  <div className="artist">{collectionTitle(c, t)}</div>
+                  <div className="sub">
+                    {t('home.collections.releaseCount', { count: c.collection_releases?.[0]?.count ?? 0 })}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {!searching && topTracks.length > 0 && (
         <section style={{ marginTop: 8 }}>
@@ -227,29 +247,6 @@ export default function Home() {
                   {t(tr.play_count === 1 ? 'home.topTracks.play_one' : 'home.topTracks.play_other', {
                     count: tr.play_count,
                   })}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!searching && collections.length > 0 && (
-        <section style={{ marginTop: 8 }}>
-          <div className="section-head"><h2>{t('home.collections.title')}</h2></div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {collections.map((c) => (
-              <Link
-                href={`/collections/${c.id}`}
-                key={c.id}
-                className="track-row"
-                style={{ textDecoration: 'none', color: 'inherit' }}
-              >
-                <div className="ttitle">
-                  {collectionTitle(c, t)}
-                  <div className="notice">
-                    {t('home.collections.releaseCount', { count: c.collection_releases?.[0]?.count ?? 0 })}
-                  </div>
                 </div>
               </Link>
             ))}
