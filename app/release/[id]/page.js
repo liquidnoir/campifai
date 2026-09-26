@@ -193,20 +193,20 @@ function ReleaseContent() {
         {tracks.length === 0 && <p className="notice">{t('release.noTracksYet')}</p>}
         {tracks.length > 0 && canInteract && (
           <QueuePlayer
-            tracks={tracks.map((t) => ({ id: t.id, title: t.title, url: t.url }))}
+            tracks={tracks.map((tr) => ({ id: tr.id, title: tr.title, url: tr.url }))}
             startIndex={startIndex}
             onTrackStart={handleTrackStart}
-            renderActions={(t) => (
+            renderActions={(track) => (
               <>
-                <AddToPlaylistButton trackId={t.id} />
+                <AddToPlaylistButton trackId={track.id} />
                 {release.genre && (
-                  <Link href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${t.id}`} className="btn ghost">
+                  <Link href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${track.id}`} className="btn ghost">
                     {t('release.radio')}
                   </Link>
                 )}
                 <ShareButton
-                  path={`/release/${release.id}?t=${t.id}`}
-                  title={`${t.title} — ${artistName || ''}`}
+                  path={`/release/${release.id}?t=${track.id}`}
+                  title={`${track.title} — ${artistName || ''}`}
                   label={t('release.shareTrack')}
                 />
               </>
@@ -215,9 +215,9 @@ function ReleaseContent() {
         )}
         {tracks.length > 0 && !canInteract && (
           <div>
-            {tracks.map((t) => (
-              <div className="track-row" key={t.id}>
-                <div className="ttitle">{t.title}</div>
+            {tracks.map((tr) => (
+              <div className="track-row" key={tr.id}>
+                <div className="ttitle">{tr.title}</div>
                 <span className="notice">{t('release.loginToListen')}</span>
               </div>
             ))}
