@@ -28,6 +28,12 @@ export default function CollectionsAdminPage() {
   const [newTitle, setNewTitle] = useState('')
   const [creating, setCreating] = useState(false)
 
+  const [editingId, setEditingId] = useState(null)
+  const [editSeason, setEditSeason] = useState('spring')
+  const [editYear, setEditYear] = useState(currentYear)
+  const [editTitle, setEditTitle] = useState('')
+  const [saving, setSaving] = useState(false)
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
   }, [])
@@ -79,6 +85,41 @@ export default function CollectionsAdminPage() {
       return
     }
     setNewTitle('')
+    load()
+  }
+
+  function startEdit(c) {
+    setMsg(null)
+    setEditingId(c.id)
+    setEditSeason(c.season)
+    setEditYear(c.year)
+    setEditTitle(c.title || '')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
+  async function saveEdit(c) {
+    setMsg(null)
+    setSaving(true)
+    const { error } = await supabase
+      .from('collections')
+      .update({
+        season: editSeason,
+        year: Number(editYear),
+        title: editTitle.trim() || null,
+      })
+      .eq('id', c.id)
+    setSaving(false)
+    if (error) {
+      setMsg({
+        type: 'error',
+        text: error.code === '23505' ? 'Den sæson/år findes allerede for en anden kollektion.' : error.message,
+      })
+      return
+    }
+    setEditingId(null)
     load()
   }
 
@@ -158,24 +199,61 @@ export default function CollectionsAdminPage() {
       </div>
 
       {collections.length === 0 && <p className="notice">Ingen kollektioner oprettet endnu.</p>}
-      {collections.map((c) => (
-        <div className="track-row" key={c.id}>
-          <div className="ttitle">
-            <Link href={`/admin/collections/${c.id}`}>{collectionTitle(c)}</Link>
-            <div className="notice">
-              {c.enabled ? 'Aktiveret' : 'Deaktiveret'} · {c.collection_releases?.[0]?.count ?? 0} udgivelser
+      {collections.map((c) =>
+        editingId === c.id ? (
+          <div className="panel" key={c.id} style={{ maxWidth: 480, marginBottom: 16 }}>
+            <div className="field">
+              <label>Sæson</label>
+              <select style={controlStyle} value={editSeason} onChange={(e) => setEditSeason(e.target.value)}>
+                {SEASON_ORDER.map((s) => (
+                  <option key={s} value={s}>{SEASON_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>År</label>
+              <input type="number" value={editYear} onChange={(e) => setEditYear(e.target.value)} style={controlStyle} />
+            </div>
+            <div className="field">
+              <label>Eget navn (valgfrit)</label>
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder={`Standard: ${SEASON_LABELS[editSeason]} ${editYear}`}
+              />
+            </div>
+            <Msg msg={msg} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" type="button" disabled={saving} onClick={() => saveEdit(c)}>
+                {saving ? 'Gemmer...' : 'Gem ændringer'}
+              </button>
+              <button className="btn ghost" type="button" onClick={cancelEdit}>
+                Annuller
+              </button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn ghost" type="button" disabled={busy === c.id} onClick={() => toggleEnabled(c)}>
-              {c.enabled ? 'Deaktivér' : 'Aktivér'}
-            </button>
-            <button className="btn ghost" type="button" disabled={busy === c.id} onClick={() => deleteCollection(c)}>
-              Slet
-            </button>
+        ) : (
+          <div className="track-row" key={c.id}>
+            <div className="ttitle">
+              <Link href={`/admin/collections/${c.id}`}>{collectionTitle(c)}</Link>
+              <div className="notice">
+                {c.enabled ? 'Aktiveret' : 'Deaktiveret'} · {c.collection_releases?.[0]?.count ?? 0} udgivelser
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn ghost" type="button" onClick={() => startEdit(c)}>
+                Redigér
+              </button>
+              <button className="btn ghost" type="button" disabled={busy === c.id} onClick={() => toggleEnabled(c)}>
+                {c.enabled ? 'Deaktivér' : 'Aktivér'}
+              </button>
+              <button className="btn ghost" type="button" disabled={busy === c.id} onClick={() => deleteCollection(c)}>
+                Slet
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      )}
     </section>
   )
 }
