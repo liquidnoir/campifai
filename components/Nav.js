@@ -44,6 +44,7 @@ export default function Nav() {
           <Link href="/">Gennemse</Link>
           {session ? (
             <>
+              <Link href="/playlists">Playlister</Link>
               {canPublish(role) && <Link href="/dashboard">Udgivelser</Link>}
               {role === 'admin' && <Link href="/admin">Admin</Link>}
               <Link href="/account">Min konto</Link>

@@ -99,6 +99,7 @@ export default function Dashboard() {
   const [newReleaseArtistId, setNewReleaseArtistId] = useState('')
   const [newReleaseTitle, setNewReleaseTitle] = useState('')
   const [newReleaseType, setNewReleaseType] = useState('single')
+  const [newReleaseGenre, setNewReleaseGenre] = useState('')
   const [newReleaseImage, setNewReleaseImage] = useState(null)
   const [creatingRelease, setCreatingRelease] = useState(false)
   const [releaseError, setReleaseError] = useState('')
@@ -107,14 +108,14 @@ export default function Dashboard() {
   const [editingReleaseId, setEditingReleaseId] = useState(null)
   const [editReleaseTitle, setEditReleaseTitle] = useState('')
   const [editReleaseType, setEditReleaseType] = useState('single')
+  const [editReleaseGenre, setEditReleaseGenre] = useState('')
   const [editReleaseImage, setEditReleaseImage] = useState(null)
   const [savingRelease, setSavingRelease] = useState(false)
 
   // Redigering af numre inde i en udgivelse
-  const [trackEdits, setTrackEdits] = useState({}) // { [trackId]: { title, genre } }
+  const [trackEdits, setTrackEdits] = useState({}) // { [trackId]: { title } }
   const [savingTrackId, setSavingTrackId] = useState(null)
   const [newTrackTitle, setNewTrackTitle] = useState('')
-  const [newTrackGenre, setNewTrackGenre] = useState('')
   const [newTrackFile, setNewTrackFile] = useState(null)
   const [trackUploadError, setTrackUploadError] = useState('')
   const [uploadingTrack, setUploadingTrack] = useState(false)
@@ -299,6 +300,7 @@ export default function Dashboard() {
           artist_id: newReleaseArtistId,
           title: titleValue,
           type: newReleaseType,
+          genre: newReleaseGenre.trim() || null,
         })
         .select()
         .single()
@@ -312,6 +314,7 @@ export default function Dashboard() {
 
       setNewReleaseTitle('')
       setNewReleaseType('single')
+      setNewReleaseGenre('')
       setNewReleaseImage(null)
       loadAll(session.user.id)
     } catch (err) {
@@ -325,10 +328,10 @@ export default function Dashboard() {
     setEditingReleaseId(r.id)
     setEditReleaseTitle(r.title)
     setEditReleaseType(r.type)
+    setEditReleaseGenre(r.genre || '')
     setEditReleaseImage(null)
     setTrackEdits({})
     setNewTrackTitle('')
-    setNewTrackGenre('')
     setNewTrackFile(null)
     setTrackUploadError('')
   }
@@ -353,7 +356,7 @@ export default function Dashboard() {
     }
     setSavingRelease(true)
     try {
-      const changes = { title: titleValue, type: editReleaseType }
+      const changes = { title: titleValue, type: editReleaseType, genre: editReleaseGenre.trim() || null }
       if (editReleaseImage) {
         const path = await uploadImage(supabase, session.user.id, 'release', editReleaseImage)
         changes.cover_path = path
@@ -408,9 +411,7 @@ export default function Dashboard() {
   function trackDirty(t) {
     const e = trackEdits[t.id]
     if (!e) return false
-    const titleChanged = e.title !== undefined && e.title.trim() !== t.title
-    const genreChanged = e.genre !== undefined && e.genre.trim() !== (t.genre || '')
-    return titleChanged || genreChanged
+    return e.title !== undefined && e.title.trim() !== t.title
   }
 
   async function saveTrack(t) {
@@ -420,10 +421,7 @@ export default function Dashboard() {
       return
     }
     setSavingTrackId(t.id)
-    const { error } = await supabase
-      .from('tracks')
-      .update({ title, genre: trackValue(t, 'genre').trim() })
-      .eq('id', t.id)
+    const { error } = await supabase.from('tracks').update({ title }).eq('id', t.id)
     setSavingTrackId(null)
     if (error) {
       setTrackUploadError(error.message)
@@ -491,7 +489,6 @@ export default function Dashboard() {
     const { error: insertError } = await supabase.from('tracks').insert({
       release_id: release.id,
       title: titleValue,
-      genre: newTrackGenre.trim(),
       audio_path: path,
       color,
     })
@@ -502,7 +499,6 @@ export default function Dashboard() {
       return
     }
     setNewTrackTitle('')
-    setNewTrackGenre('')
     setNewTrackFile(null)
     form.reset()
     setUploadingTrack(false)
@@ -662,8 +658,8 @@ export default function Dashboard() {
                   <div>
                     <Link href={`/release/${r.id}`}>{r.title}</Link>
                     <div className="notice">
-                      {r.artists?.name || 'Ukendt kunstner'} · {RELEASE_TYPE_LABELS[r.type]} ·{' '}
-                      {releaseTracks.length}/{limit} numre
+                      {r.artists?.name || 'Ukendt kunstner'} · {RELEASE_TYPE_LABELS[r.type]}
+                      {r.genre ? ` · ${r.genre}` : ''} · {releaseTracks.length}/{limit} numre
                     </div>
                   </div>
                 </div>
@@ -699,6 +695,14 @@ export default function Dashboard() {
                       ))}
                     </select>
                   </div>
+                  <div className="field">
+                    <label>Genre</label>
+                    <input
+                      value={editReleaseGenre}
+                      onChange={(e) => setEditReleaseGenre(e.target.value)}
+                      placeholder="fx Ambient, Pop, Rock"
+                    />
+                  </div>
                   <ImagePicker
                     label="Cover art"
                     currentUrl={imagePublicUrl(supabase, r.cover_path)}
@@ -716,13 +720,9 @@ export default function Dashboard() {
                   )}
                   {releaseTracks.map((t) => (
                     <div key={t.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 10, flexWrap: 'wrap' }}>
-                      <div className="field" style={{ margin: 0, flex: '1 1 160px' }}>
+                      <div className="field" style={{ margin: 0, flex: '1 1 220px' }}>
                         <label>Titel</label>
                         <input value={trackValue(t, 'title')} onChange={(e) => setTrackField(t, 'title', e.target.value)} />
-                      </div>
-                      <div className="field" style={{ margin: 0, flex: '1 1 120px' }}>
-                        <label>Genre</label>
-                        <input value={trackValue(t, 'genre')} onChange={(e) => setTrackField(t, 'genre', e.target.value)} />
                       </div>
                       <button
                         className="btn ghost"
@@ -743,15 +743,6 @@ export default function Dashboard() {
                     <div className="field">
                       <label>Titel</label>
                       <input disabled={atLimit} value={newTrackTitle} onChange={(e) => setNewTrackTitle(e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>Genre</label>
-                      <input
-                        disabled={atLimit}
-                        value={newTrackGenre}
-                        onChange={(e) => setNewTrackGenre(e.target.value)}
-                        placeholder="fx Ambient, Pop, Rock"
-                      />
                     </div>
                     <div className="field">
                       <label>Lydfil</label>
@@ -809,6 +800,14 @@ export default function Dashboard() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="field">
+              <label>Genre</label>
+              <input
+                value={newReleaseGenre}
+                onChange={(e) => setNewReleaseGenre(e.target.value)}
+                placeholder="fx Ambient, Pop, Rock"
+              />
             </div>
             <ImagePicker label="Cover art" currentUrl={null} onChange={pickImage(setNewReleaseImage)} />
             <Msg msg={releaseError} />

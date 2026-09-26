@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { RELEASE_TYPE_LABELS, imagePublicUrl } from '../../../lib/shared'
 import ShareButton from '../../../components/ShareButton'
+import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -13,11 +14,16 @@ function ReleaseContent() {
   const { id } = useParams()
   const searchParams = useSearchParams()
   const highlightId = searchParams.get('t')
+  const [session, setSession] = useState(undefined)
   const [release, setRelease] = useState(null)
   const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
   const countedRef = useRef(new Set())
   const highlightRef = useRef(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+  }, [])
 
   useEffect(() => {
     if (id) loadRelease()
@@ -32,7 +38,9 @@ function ReleaseContent() {
   async function loadRelease() {
     const { data: releaseData } = await supabase
       .from('releases')
-      .select('id, title, type, color, cover_path, artist_id, publisher_id, artists ( name ), profiles ( display_name )')
+      .select(
+        'id, title, type, color, cover_path, genre, artist_id, publisher_id, artists ( name ), profiles ( display_name )'
+      )
       .eq('id', id)
       .single()
     setRelease(releaseData)
@@ -82,6 +90,7 @@ function ReleaseContent() {
   const publisherName = release.profiles?.display_name
   const artistName = release.artists?.name
   const showPublisher = publisherName && publisherName.trim().toLowerCase() !== (artistName || '').trim().toLowerCase()
+  const canInteract = Boolean(session)
 
   return (
     <section>
@@ -103,14 +112,21 @@ function ReleaseContent() {
         <div style={{ flex: '1 1 200px' }}>
           <div className="section-head" style={{ marginBottom: 0 }}>
             <div>
-              <div className="notice">{RELEASE_TYPE_LABELS[release.type] || release.type}</div>
+              <div className="notice">
+                {RELEASE_TYPE_LABELS[release.type] || release.type}
+                {release.genre ? ` · ${release.genre}` : ''}
+              </div>
               <h2 style={{ marginTop: 4 }}>{release.title}</h2>
               <p className="notice" style={{ marginTop: 4 }}>
                 <Link href={`/artist/${release.artist_id}`}>{artistName || 'Ukendt kunstner'}</Link>
                 {showPublisher && <> · Udgivet af {publisherName}</>}
               </p>
             </div>
-            <ShareButton path={`/release/${release.id}`} title={`${release.title} — ${artistName || ''}`} label="Del udgivelse" />
+            <ShareButton
+              path={`/release/${release.id}`}
+              title={`${release.title} — ${artistName || ''}`}
+              label="Del udgivelse"
+            />
           </div>
         </div>
       </div>
@@ -124,20 +140,26 @@ function ReleaseContent() {
             ref={t.id === highlightId ? highlightRef : null}
             style={t.id === highlightId ? { background: 'var(--surface)', borderRadius: 4 } : undefined}
           >
-            <div className="ttitle">
-              {t.title}
-              <div className="notice">{t.genre}</div>
-            </div>
+            <div className="ttitle">{t.title}</div>
             {t.url ? (
               <audio controls preload="none" src={t.url} onPlay={() => handlePlay(t.id)} />
             ) : (
               <span className="notice">Log ind for at lytte.</span>
             )}
-            <ShareButton
-              path={`/release/${release.id}?t=${t.id}`}
-              title={`${t.title} — ${artistName || ''}`}
-              label="Del"
-            />
+            {canInteract && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <AddToPlaylistButton trackId={t.id} />
+                {release.genre && (
+                  <Link
+                    href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${t.id}`}
+                    className="btn ghost"
+                  >
+                    Radio
+                  </Link>
+                )}
+                <ShareButton path={`/release/${release.id}?t=${t.id}`} title={`${t.title} — ${artistName || ''}`} label="Del" />
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -84,10 +84,10 @@ export default function Home() {
     const [releasesRes, artistsRes, tracksRes, topTracksRes] = await Promise.all([
       supabase
         .from('releases')
-        .select('id, title, type, color, cover_path, artist_id, artists ( name )')
+        .select('id, title, type, color, cover_path, genre, artist_id, artists ( name )')
         .order('created_at', { ascending: false }),
       supabase.from('artists').select('id, name, image_path').order('name', { ascending: true }),
-      supabase.from('tracks').select('id, title, genre, release_id'),
+      supabase.from('tracks').select('id, title, release_id'),
       supabase
         .from('tracks')
         .select('id, title, play_count, release_id, releases ( title, artist_id, artists ( name ) )')
@@ -119,10 +119,9 @@ export default function Home() {
     return releases.filter((r) => {
       if (r.title.toLowerCase().includes(q)) return true
       if ((r.artists?.name || '').toLowerCase().includes(q)) return true
+      if ((r.genre || '').toLowerCase().includes(q)) return true
       const relTracks = tracksByRelease[r.id] || []
-      return relTracks.some(
-        (t) => t.title.toLowerCase().includes(q) || (t.genre || '').toLowerCase().includes(q)
-      )
+      return relTracks.some((t) => t.title.toLowerCase().includes(q))
     })
   }, [releases, tracksByRelease, q, searching])
 
@@ -188,7 +187,10 @@ export default function Home() {
               <CoverTile imageUrl={imagePublicUrl(supabase, r.cover_path)} color={r.color} label={r.title} />
               <div className="meta">
                 <div className="artist">{r.artists?.name || 'Ukendt kunstner'}</div>
-                <div className="sub">{r.title} · {RELEASE_TYPE_LABELS[r.type] || r.type}</div>
+                <div className="sub">
+                  {r.title} · {RELEASE_TYPE_LABELS[r.type] || r.type}
+                  {r.genre ? ` · ${r.genre}` : ''}
+                </div>
               </div>
             </Link>
           ))}
