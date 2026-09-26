@@ -6,7 +6,6 @@ import { controlStyle, imagePublicUrl } from '../lib/shared'
 import { collectionTitle } from '../lib/collections'
 import { useLanguage } from '../components/LanguageProvider'
 import HeroArt from '../components/HeroArt'
-import WaveDivider from '../components/WaveDivider'
 
 function CoverTile({ imageUrl, color, label }) {
   if (imageUrl) {
@@ -159,9 +158,6 @@ export default function Home() {
           <div className="hero-art">
             <HeroArt />
           </div>
-        </div>
-        <div className="wave-divider">
-          <WaveDivider />
         </div>
       </section>
 
