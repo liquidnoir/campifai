@@ -5,8 +5,8 @@ import { supabase } from '../lib/supabase'
 
 // Nøjagtige sider man må se uden login
 const PUBLIC_PATHS = ['/', '/login', '/signup']
-// Sider man må browse uden login (kun visning, aldrig afspilning eller upload)
-const PUBLIC_PREFIXES = ['/artist/', '/release/']
+// Sider man må browse uden login (kun visning, aldrig afspilning, download eller upload)
+const PUBLIC_PREFIXES = ['/artist/', '/release/', '/collections/']
 
 function isPublicPath(pathname) {
   return PUBLIC_PATHS.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { RELEASE_TYPE_LABELS, controlStyle, imagePublicUrl } from '../lib/shared'
+import { collectionTitle } from '../lib/collections'
 import HeroArt from '../components/HeroArt'
 import WaveDivider from '../components/WaveDivider'
 
@@ -72,6 +73,7 @@ export default function Home() {
   const [artists, setArtists] = useState([])
   const [tracks, setTracks] = useState([])
   const [topTracks, setTopTracks] = useState([])
+  const [collections, setCollections] = useState([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
 
@@ -81,7 +83,7 @@ export default function Home() {
   }, [])
 
   async function loadHome() {
-    const [releasesRes, artistsRes, tracksRes, topTracksRes] = await Promise.all([
+    const [releasesRes, artistsRes, tracksRes, topTracksRes, collectionsRes] = await Promise.all([
       supabase
         .from('releases')
         .select('id, title, type, color, cover_path, genre, artist_id, artists ( name )')
@@ -94,11 +96,18 @@ export default function Home() {
         .gt('play_count', 0)
         .order('play_count', { ascending: false })
         .limit(10),
+      supabase
+        .from('collections')
+        .select('id, season, year, title, collection_releases ( count )')
+        .eq('enabled', true)
+        .order('year', { ascending: false })
+        .order('season', { ascending: true }),
     ])
     if (!releasesRes.error && releasesRes.data) setReleases(releasesRes.data)
     if (!artistsRes.error && artistsRes.data) setArtists(artistsRes.data)
     if (!tracksRes.error && tracksRes.data) setTracks(tracksRes.data)
     if (!topTracksRes.error && topTracksRes.data) setTopTracks(topTracksRes.data)
+    if (!collectionsRes.error && collectionsRes.data) setCollections(collectionsRes.data)
     setLoading(false)
   }
 
@@ -217,6 +226,29 @@ export default function Home() {
                 </div>
                 <div className="notice" style={{ flexShrink: 0 }}>
                   {t.play_count} {t.play_count === 1 ? 'afspilning' : 'afspilninger'}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!searching && collections.length > 0 && (
+        <section style={{ marginTop: 8 }}>
+          <div className="section-head"><h2>Kollektioner</h2></div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {collections.map((c) => (
+              <Link
+                href={`/collections/${c.id}`}
+                key={c.id}
+                className="track-row"
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className="ttitle">
+                  {collectionTitle(c)}
+                  <div className="notice">
+                    {c.collection_releases?.[0]?.count ?? 0} udgivelser
+                  </div>
                 </div>
               </Link>
             ))}
