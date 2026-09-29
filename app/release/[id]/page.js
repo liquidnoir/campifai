@@ -11,6 +11,7 @@ import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 import QueuePlayer from '../../../components/QueuePlayer'
 import PurchaseGate from '../../../components/PurchaseGate'
+import PaymentReturn from '../../../components/PaymentReturn'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -128,6 +129,7 @@ function ReleaseContent() {
 
   return (
     <section>
+      <PaymentReturn onConfirmed={checkAccess} />
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div
           className="cover"

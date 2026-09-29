@@ -9,6 +9,7 @@ import { hasReleaseAccess, hasCollectionAccess } from '../../../lib/purchases'
 import { downloadCollectionZip } from '../../../lib/zipDownload'
 import { useLanguage } from '../../../components/LanguageProvider'
 import PurchaseGate from '../../../components/PurchaseGate'
+import PaymentReturn from '../../../components/PaymentReturn'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -63,10 +64,10 @@ export default function CollectionPage() {
   }, [id])
 
   useEffect(() => {
-    if (session === undefined || releases.length === 0) return
+    if (session === undefined || !collection) return
     checkAllAccess()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, releases])
+  }, [session, collection, releases])
 
   async function load() {
     const { data: collectionData } = await supabase.from('collections').select('*').eq('id', id).single()
@@ -161,6 +162,7 @@ export default function CollectionPage() {
 
   return (
     <section>
+      <PaymentReturn onConfirmed={checkAllAccess} />
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div
           className="cover"
