@@ -2,18 +2,20 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DONATION_OPTIONS, recordPurchase } from '../lib/purchases'
-import { MAX_EUR, PRICING, parseAmountToCents } from '../lib/pricing'
+import { MAX_EUR, getPricingRules, parseAmountToCents } from '../lib/pricing'
 import { useLanguage } from './LanguageProvider'
 
 // hasAccess: bool | null (null = tjekker stadig)
+// releaseType: KUN relevant når scope === 'release' — skal være den ægte type
+//   (single/ep/album) fra databasen, da den styrer minimums- og forslagsprisen.
 // onGranted: kaldes efter et gennemført donations-"køb", så forælderen kan opdatere adgangen
-export default function PurchaseGate({ scope, releaseId, collectionId, itemLabel, hasAccess, onGranted }) {
+export default function PurchaseGate({ scope, releaseId, collectionId, releaseType, itemLabel, hasAccess, onGranted }) {
   const { t } = useLanguage()
-  const rules = PRICING[scope]
+  const rules = getPricingRules(scope, releaseType)
   const [busyKey, setBusyKey] = useState('')
   const [error, setError] = useState('')
   const [cardOpen, setCardOpen] = useState(false)
-  const [amount, setAmount] = useState(String(rules.suggestedEur))
+  const [amount, setAmount] = useState(String(rules?.suggestedEur ?? ''))
   const [cardBusy, setCardBusy] = useState(false)
 
   // Kommer man tilbage til siden med "tilbage"-knappen fra Stripe, skal knappen ikke sidde fast
@@ -46,9 +48,9 @@ export default function PurchaseGate({ scope, releaseId, collectionId, itemLabel
   async function handleCard(event) {
     event.preventDefault()
     setError('')
-    const parsed = parseAmountToCents(amount, scope)
-    if (!parsed.ok) {
-      setError(t('purchase.card.invalidAmount', { min: rules.minEur, max: MAX_EUR }))
+    const parsed = parseAmountToCents(amount, scope, releaseType)
+    if (!parsed.ok || !rules) {
+      setError(t('purchase.card.invalidAmount', { min: rules?.minEur ?? '?', max: MAX_EUR }))
       return
     }
     setCardBusy(true)
@@ -102,7 +104,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, itemLabel
         </button>
       </div>
 
-      {cardOpen && (
+      {cardOpen && rules && (
         <form onSubmit={handleCard} style={{ marginTop: 16 }}>
           <div className="field" style={{ maxWidth: 260 }}>
             <label htmlFor={`amount-${scope}`}>{t('purchase.card.amountLabel', { min: rules.minEur })}</label>

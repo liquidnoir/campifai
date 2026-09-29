@@ -172,6 +172,7 @@ function ReleaseContent() {
           <PurchaseGate
             scope="release"
             releaseId={release.id}
+            releaseType={release.type}
             itemLabel={t('purchase.thisRelease', { title: release.title })}
             hasAccess={hasAccess}
             onGranted={checkAccess}
