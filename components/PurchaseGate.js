@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DONATION_OPTIONS, recordPurchase } from '../lib/purchases'
-import { MAX_EUR, getPricingRules, parseAmountToCents } from '../lib/pricing'
+import { getPricingRules, parseAmountToCents } from '../lib/pricing'
 import { useLanguage } from './LanguageProvider'
 
 // hasAccess: bool | null (null = tjekker stadig)
@@ -50,7 +50,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
     setError('')
     const parsed = parseAmountToCents(amount, scope, releaseType)
     if (!parsed.ok || !rules) {
-      setError(t('purchase.card.invalidAmount', { min: rules?.minEur ?? '?', max: MAX_EUR }))
+      setError(t('purchase.card.invalidAmount', { max: rules?.maxEur ?? '?' }))
       return
     }
     setCardBusy(true)
@@ -66,7 +66,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
       if (!res.ok || !body.url) {
         setError(
           body.error === 'amount_invalid'
-            ? t('purchase.card.invalidAmount', { min: rules.minEur, max: MAX_EUR })
+            ? t('purchase.card.invalidAmount', { max: rules.maxEur })
             : t('purchase.card.failed')
         )
         setCardBusy(false)
@@ -107,7 +107,9 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
       {cardOpen && rules && (
         <form onSubmit={handleCard} style={{ marginTop: 16 }}>
           <div className="field" style={{ maxWidth: 260 }}>
-            <label htmlFor={`amount-${scope}`}>{t('purchase.card.amountLabel', { min: rules.minEur })}</label>
+            <label htmlFor={`amount-${scope}`}>
+              {t('purchase.card.amountLabel', { suggested: rules.suggestedEur, max: rules.maxEur })}
+            </label>
             <input
               id={`amount-${scope}`}
               type="text"

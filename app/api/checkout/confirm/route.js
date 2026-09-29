@@ -47,7 +47,8 @@ export async function POST(req) {
   // Man kan kun bekræfte sin egen betaling
   if (session.metadata?.user_id !== user.id) return json({ error: 'forbidden' }, 403)
 
-  if (session.payment_status !== 'paid') {
+  const paid = session.payment_status === 'paid' || session.payment_status === 'no_payment_required'
+  if (!paid) {
     return json({ ok: false, error: 'not_paid', status: session.payment_status })
   }
 

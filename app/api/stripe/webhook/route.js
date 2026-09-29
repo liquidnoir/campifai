@@ -30,8 +30,9 @@ export async function POST(req) {
 
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const session = event.data.object
-    // Nogle betalingsmetoder bekræftes først senere; adgang gives kun, når pengene er der.
-    if (session.payment_status === 'paid') {
+    // Nogle betalingsmetoder bekræftes først senere; et 0-beløb (den midlertidige
+    // sikkerhedsgrænse) rapporteres som "no_payment_required" i stedet for "paid".
+    if (session.payment_status === 'paid' || session.payment_status === 'no_payment_required') {
       try {
         await recordPaidSession(getAdminClient(), session)
       } catch (err) {
