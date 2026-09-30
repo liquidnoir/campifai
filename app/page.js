@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { controlStyle, imagePublicUrl } from '../lib/shared'
 import { collectionTitle } from '../lib/collections'
+import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from '../components/LanguageProvider'
 
 function CoverTile({ imageUrl, color, label }) {
@@ -67,19 +68,21 @@ function ArtistRow({ artist }) {
 }
 
 export default function Home() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [session, setSession] = useState(undefined)
   const [releases, setReleases] = useState([])
   const [artists, setArtists] = useState([])
   const [tracks, setTracks] = useState([])
   const [topTracks, setTopTracks] = useState([])
   const [collections, setCollections] = useState([])
+  const [heroSettings, setHeroSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     loadHome()
+    getAppSettings(supabase).then(setHeroSettings)
   }, [])
 
   async function loadHome() {
@@ -123,6 +126,14 @@ export default function Home() {
   const q = query.trim().toLowerCase()
   const searching = q.length > 0
 
+  const heroTitle =
+    (lang === 'da' ? heroSettings?.heroTitleDa : heroSettings?.heroTitleEn)?.trim() || t('home.hero.title')
+  const heroBody =
+    (lang === 'da' ? heroSettings?.heroBodyDa : heroSettings?.heroBodyEn)?.trim() || t('home.hero.body')
+  const heroImageUrl = heroSettings?.heroImagePath
+    ? imagePublicUrl(supabase, heroSettings.heroImagePath)
+    : '/hero-mushrooms.jpg'
+
   const filteredReleases = useMemo(() => {
     if (!searching) return []
     return releases.filter((r) => {
@@ -144,8 +155,8 @@ export default function Home() {
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-text">
-            <h1>{t('home.hero.title')}</h1>
-            <p>{t('home.hero.body')}</p>
+            <h1>{heroTitle}</h1>
+            <p>{heroBody}</p>
             {session === null && (
               <p className="notice" style={{ marginTop: 8 }}>
                 {t('home.hero.guestNotice.pre')} <Link href="/login">{t('home.hero.guestLogin')}</Link>{' '}
@@ -156,7 +167,7 @@ export default function Home() {
           </div>
           <div className="hero-art">
             <img
-              src="/hero-mushrooms.jpg"
+              src={heroImageUrl}
               alt=""
               style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 3 }}
             />

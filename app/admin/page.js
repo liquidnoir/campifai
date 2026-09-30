@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import { controlStyle, removeFolderFiles, removeFolderImages } from '../../lib/shared'
+import { MAX_IMAGE_MB, controlStyle, imagePublicUrl, removeFolderFiles, removeFolderImages, removeImage, uploadImage } from '../../lib/shared'
 import { useLanguage } from '../../components/LanguageProvider'
 
 function Msg({ msg }) {
@@ -38,6 +38,11 @@ export default function AdminPage() {
   const [busy, setBusy] = useState('')
   const [settings, setSettings] = useState(null)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [heroForm, setHeroForm] = useState({ titleDa: '', titleEn: '', bodyDa: '', bodyEn: '' })
+  const [savingHeroText, setSavingHeroText] = useState(false)
+  const [heroTextMsg, setHeroTextMsg] = useState(null)
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false)
+  const [heroImageMsg, setHeroImageMsg] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -64,10 +69,18 @@ export default function AdminPage() {
   async function loadSettings() {
     const { data, error } = await supabase
       .from('app_settings')
-      .select('purchases_enabled, donations_enabled')
+      .select('purchases_enabled, donations_enabled, hero_image_path, hero_title_da, hero_title_en, hero_body_da, hero_body_en')
       .eq('id', 1)
       .maybeSingle()
-    if (!error && data) setSettings(data)
+    if (!error && data) {
+      setSettings(data)
+      setHeroForm({
+        titleDa: data.hero_title_da || '',
+        titleEn: data.hero_title_en || '',
+        bodyDa: data.hero_body_da || '',
+        bodyEn: data.hero_body_en || '',
+      })
+    }
   }
 
   async function toggleSetting(field) {
@@ -84,6 +97,74 @@ export default function AdminPage() {
       return
     }
     setSettings(next)
+  }
+
+  async function saveHeroText(e) {
+    e.preventDefault()
+    setHeroTextMsg(null)
+    setSavingHeroText(true)
+    const changes = {
+      hero_title_da: heroForm.titleDa.trim() || null,
+      hero_title_en: heroForm.titleEn.trim() || null,
+      hero_body_da: heroForm.bodyDa.trim() || null,
+      hero_body_en: heroForm.bodyEn.trim() || null,
+    }
+    const { error } = await supabase.from('app_settings').update(changes).eq('id', 1)
+    setSavingHeroText(false)
+    if (error) {
+      setHeroTextMsg({ type: 'error', text: error.message })
+      return
+    }
+    setSettings((prev) => ({ ...prev, ...changes }))
+    setHeroTextMsg({ type: 'ok', text: t('admin.hero.saved') })
+  }
+
+  async function resetHeroText() {
+    setHeroTextMsg(null)
+    setSavingHeroText(true)
+    const changes = { hero_title_da: null, hero_title_en: null, hero_body_da: null, hero_body_en: null }
+    const { error } = await supabase.from('app_settings').update(changes).eq('id', 1)
+    setSavingHeroText(false)
+    if (error) {
+      setHeroTextMsg({ type: 'error', text: error.message })
+      return
+    }
+    setSettings((prev) => ({ ...prev, ...changes }))
+    setHeroForm({ titleDa: '', titleEn: '', bodyDa: '', bodyEn: '' })
+    setHeroTextMsg({ type: 'ok', text: t('admin.hero.resetDone') })
+  }
+
+  async function handleHeroImageChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setHeroImageMsg(null)
+    setUploadingHeroImage(true)
+    try {
+      const path = await uploadImage(supabase, session.user.id, 'hero', file, t)
+      const { error } = await supabase.from('app_settings').update({ hero_image_path: path }).eq('id', 1)
+      if (error) throw error
+      if (settings?.hero_image_path) await removeImage(supabase, settings.hero_image_path)
+      setSettings((prev) => ({ ...prev, hero_image_path: path }))
+      setHeroImageMsg({ type: 'ok', text: t('admin.hero.imageSaved') })
+    } catch (err) {
+      setHeroImageMsg({ type: 'error', text: err.message || t('common.somethingWrong') })
+    }
+    setUploadingHeroImage(false)
+    e.target.value = ''
+  }
+
+  async function resetHeroImage() {
+    setHeroImageMsg(null)
+    setUploadingHeroImage(true)
+    const { error } = await supabase.from('app_settings').update({ hero_image_path: null }).eq('id', 1)
+    if (!error && settings?.hero_image_path) await removeImage(supabase, settings.hero_image_path)
+    setUploadingHeroImage(false)
+    if (error) {
+      setHeroImageMsg({ type: 'error', text: error.message })
+      return
+    }
+    setSettings((prev) => ({ ...prev, hero_image_path: null }))
+    setHeroImageMsg({ type: 'ok', text: t('admin.hero.resetDone') })
   }
 
   async function loadUsers() {
@@ -314,6 +395,87 @@ export default function AdminPage() {
             />
             {t('admin.settings.donations')}
           </label>
+        </div>
+      )}
+
+      {settings && (
+        <div className="panel" style={{ maxWidth: 480, marginBottom: 8 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t('admin.hero.title')}</h3>
+
+          <div className="field">
+            <label>{t('admin.hero.imageLabel')}</label>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {settings.hero_image_path && (
+                <div
+                  style={{
+                    width: 64,
+                    height: 44,
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    backgroundImage: `url(${imagePublicUrl(supabase, settings.hero_image_path)})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                />
+              )}
+              <input type="file" accept="image/*" disabled={uploadingHeroImage} onChange={handleHeroImageChange} />
+            </div>
+            <div className="notice" style={{ marginTop: 4 }}>
+              {t('dashboard.imagePicker.hint', { max: MAX_IMAGE_MB })}
+            </div>
+          </div>
+          {settings.hero_image_path && (
+            <button className="btn ghost" type="button" disabled={uploadingHeroImage} onClick={resetHeroImage}>
+              {t('admin.hero.resetImage')}
+            </button>
+          )}
+          <Msg msg={heroImageMsg} />
+
+          <form onSubmit={saveHeroText} style={{ marginTop: 20 }}>
+            <div className="field">
+              <label>{t('admin.hero.titleDa')}</label>
+              <input
+                value={heroForm.titleDa}
+                onChange={(e) => setHeroForm((f) => ({ ...f, titleDa: e.target.value }))}
+                placeholder={t('home.hero.title')}
+              />
+            </div>
+            <div className="field">
+              <label>{t('admin.hero.bodyDa')}</label>
+              <textarea
+                value={heroForm.bodyDa}
+                onChange={(e) => setHeroForm((f) => ({ ...f, bodyDa: e.target.value }))}
+                placeholder={t('home.hero.body')}
+                style={{ ...controlStyle, minHeight: 72, resize: 'vertical' }}
+              />
+            </div>
+            <div className="field">
+              <label>{t('admin.hero.titleEn')}</label>
+              <input
+                value={heroForm.titleEn}
+                onChange={(e) => setHeroForm((f) => ({ ...f, titleEn: e.target.value }))}
+                placeholder={t('home.hero.title')}
+              />
+            </div>
+            <div className="field">
+              <label>{t('admin.hero.bodyEn')}</label>
+              <textarea
+                value={heroForm.bodyEn}
+                onChange={(e) => setHeroForm((f) => ({ ...f, bodyEn: e.target.value }))}
+                placeholder={t('home.hero.body')}
+                style={{ ...controlStyle, minHeight: 72, resize: 'vertical' }}
+              />
+            </div>
+            <Msg msg={heroTextMsg} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" type="submit" disabled={savingHeroText}>
+                {savingHeroText ? t('common.saving') : t('common.save')}
+              </button>
+              <button className="btn ghost" type="button" disabled={savingHeroText} onClick={resetHeroText}>
+                {t('admin.hero.resetText')}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
