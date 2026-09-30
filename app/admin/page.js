@@ -36,6 +36,8 @@ export default function AdminPage() {
   const [artistEdits, setArtistEdits] = useState({})
   const [msg, setMsg] = useState(null)
   const [busy, setBusy] = useState('')
+  const [settings, setSettings] = useState(null)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -54,9 +56,34 @@ export default function AdminPage() {
     const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
     setMe(data || null)
     if (data?.role === 'admin') {
-      await Promise.all([loadUsers(), loadArtists()])
+      await Promise.all([loadUsers(), loadArtists(), loadSettings()])
     }
     setChecked(true)
+  }
+
+  async function loadSettings() {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('purchases_enabled, donations_enabled')
+      .eq('id', 1)
+      .maybeSingle()
+    if (!error && data) setSettings(data)
+  }
+
+  async function toggleSetting(field) {
+    if (!settings) return
+    setSavingSettings(true)
+    const next = { ...settings, [field]: !settings[field] }
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ [field]: next[field] })
+      .eq('id', 1)
+    setSavingSettings(false)
+    if (error) {
+      setMsg({ type: 'error', text: error.message })
+      return
+    }
+    setSettings(next)
   }
 
   async function loadUsers() {
@@ -265,6 +292,30 @@ export default function AdminPage() {
           artists: artists.length,
         })}
       </p>
+
+      {settings && (
+        <div className="panel" style={{ maxWidth: 420, marginTop: 16, marginBottom: 8 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t('admin.settings.title')}</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={settings.purchases_enabled}
+              disabled={savingSettings}
+              onChange={() => toggleSetting('purchases_enabled')}
+            />
+            {t('admin.settings.purchases')}
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={settings.donations_enabled}
+              disabled={savingSettings}
+              onChange={() => toggleSetting('donations_enabled')}
+            />
+            {t('admin.settings.donations')}
+          </label>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, margin: '20px 0 12px' }}>
         <button className={tab === 'users' ? 'btn' : 'btn ghost'} onClick={() => setTab('users')}>

@@ -41,7 +41,7 @@ export default function Nav() {
   return (
     <header className="top">
       <div className="top-inner">
-        <Link href="/" className="logo">Campifai</Link>
+        <Link href="/" className="logo">We Built Other</Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <Link href="/">{t('nav.browse')}</Link>
           {session ? (

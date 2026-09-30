@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DONATION_OPTIONS, recordPurchase } from '../lib/purchases'
 import { getPricingRules, parseAmountToCents } from '../lib/pricing'
+import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from './LanguageProvider'
 
 // hasAccess: bool | null (null = tjekker stadig)
@@ -12,11 +13,16 @@ import { useLanguage } from './LanguageProvider'
 export default function PurchaseGate({ scope, releaseId, collectionId, releaseType, itemLabel, hasAccess, onGranted }) {
   const { t } = useLanguage()
   const rules = getPricingRules(scope, releaseType)
+  const [settings, setSettings] = useState(null) // null = henter stadig
   const [busyKey, setBusyKey] = useState('')
   const [error, setError] = useState('')
   const [cardOpen, setCardOpen] = useState(false)
   const [amount, setAmount] = useState(String(rules?.suggestedEur ?? ''))
   const [cardBusy, setCardBusy] = useState(false)
+
+  useEffect(() => {
+    getAppSettings(supabase).then(setSettings)
+  }, [])
 
   // Kommer man tilbage til siden med "tilbage"-knappen fra Stripe, skal knappen ikke sidde fast
   useEffect(() => {
@@ -67,7 +73,9 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
         setError(
           body.error === 'amount_invalid'
             ? t('purchase.card.invalidAmount', { max: rules.maxEur })
-            : t('purchase.card.failed')
+            : body.error === 'purchases_disabled'
+              ? t('purchase.card.disabled')
+              : t('purchase.card.failed')
         )
         setCardBusy(false)
         return
@@ -79,8 +87,18 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
     }
   }
 
-  if (hasAccess === null) return <p className="notice">{t('common.loading')}</p>
+  if (hasAccess === null || settings === null) return <p className="notice">{t('common.loading')}</p>
   if (hasAccess) return null
+
+  const { purchasesEnabled, donationsEnabled } = settings
+
+  if (!purchasesEnabled && !donationsEnabled) {
+    return (
+      <div className="panel" style={{ marginBottom: 20 }}>
+        <p className="notice" style={{ margin: 0 }}>{t('purchase.unavailable')}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="panel" style={{ marginBottom: 20 }}>
@@ -88,23 +106,26 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
         {t('purchase.supportPrompt', { item: itemLabel })}
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {DONATION_OPTIONS.map((o) => (
-          <button
-            key={o.key}
-            className="btn ghost"
-            type="button"
-            disabled={busyKey === o.key}
-            onClick={() => handleDonate(o)}
-          >
-            {busyKey === o.key ? t('purchase.opening') : t(`purchase.donation.${o.key}`)}
+        {donationsEnabled &&
+          DONATION_OPTIONS.map((o) => (
+            <button
+              key={o.key}
+              className="btn ghost"
+              type="button"
+              disabled={busyKey === o.key}
+              onClick={() => handleDonate(o)}
+            >
+              {busyKey === o.key ? t('purchase.opening') : t(`purchase.donation.${o.key}`)}
+            </button>
+          ))}
+        {purchasesEnabled && (
+          <button className="btn ghost" type="button" onClick={() => setCardOpen((open) => !open)}>
+            {t('purchase.payByCard')}
           </button>
-        ))}
-        <button className="btn ghost" type="button" onClick={() => setCardOpen((open) => !open)}>
-          {t('purchase.payByCard')}
-        </button>
+        )}
       </div>
 
-      {cardOpen && rules && (
+      {purchasesEnabled && cardOpen && rules && (
         <form onSubmit={handleCard} style={{ marginTop: 16 }}>
           <div className="field" style={{ maxWidth: 260 }}>
             <label htmlFor={`amount-${scope}`}>

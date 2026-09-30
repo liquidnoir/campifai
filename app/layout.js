@@ -4,12 +4,12 @@ import AuthGate from '../components/AuthGate'
 import { LanguageProvider } from '../components/LanguageProvider'
 
 export const metadata = {
-  title: 'Campifai',
+  title: 'We Built Other',
   description: 'Music straight from the artist to you',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Campifai',
+    title: 'We Built Other',
   },
 }
 

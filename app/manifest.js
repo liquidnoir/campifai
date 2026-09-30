@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: 'Campifai',
-    short_name: 'Campifai',
+    name: 'We Built Other',
+    short_name: 'We Built Other',
     description: 'Music straight from the artist to you',
     start_url: '/',
     display: 'standalone',

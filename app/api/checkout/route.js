@@ -35,6 +35,13 @@ export async function POST(req) {
   const user = await getUserFromRequest(admin, req)
   if (!user) return json({ error: 'unauthorized' }, 401)
 
+  const { data: settings } = await admin
+    .from('app_settings')
+    .select('purchases_enabled')
+    .eq('id', 1)
+    .maybeSingle()
+  if (settings && settings.purchases_enabled === false) return json({ error: 'purchases_disabled' }, 403)
+
   let body
   try {
     body = await req.json()
@@ -85,7 +92,7 @@ export async function POST(req) {
           price_data: {
             currency: CURRENCY,
             unit_amount: parsed.cents,
-            product_data: { name: `Campifai — ${title}` },
+            product_data: { name: `We Built Other — ${title}` },
           },
         },
       ],
