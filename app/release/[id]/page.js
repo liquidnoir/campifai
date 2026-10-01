@@ -27,7 +27,7 @@ function ReleaseContent() {
   const [loading, setLoading] = useState(true)
   const [hasAccess, setHasAccess] = useState(null) // null = tjekker, true/false = kendt
   const [download, setDownload] = useState({ busy: false, progress: null, stage: null, error: null })
-  const [downloadFormat, setDownloadFormat] = useState('original')
+  const [downloadFormat, setDownloadFormat] = useState('mp3')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -193,7 +193,6 @@ function ReleaseContent() {
                   disabled={download.busy}
                   style={{ padding: '10px 8px' }}
                 >
-                  <option value="original">{t('download.format.original')}</option>
                   <option value="mp3">{t('download.format.mp3')}</option>
                   <option value="flac">{t('download.format.flac')}</option>
                 </select>
@@ -208,9 +207,7 @@ function ReleaseContent() {
                     : t('common.download')}
                 </button>
               </div>
-              {downloadFormat !== 'original' && (
-                <p className="notice" style={{ marginTop: 6 }}>{t('download.conversionNote')}</p>
-              )}
+              <p className="notice" style={{ marginTop: 6 }}>{t('download.conversionNote')}</p>
               {download.error && <div className="error-msg">{download.error}</div>}
             </div>
           )}

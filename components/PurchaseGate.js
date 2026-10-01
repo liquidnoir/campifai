@@ -103,7 +103,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
   return (
     <div className="panel" style={{ marginBottom: 20 }}>
       <p className="notice" style={{ marginBottom: 12 }}>
-        {t('purchase.supportPrompt', { item: itemLabel })}
+        {scope === 'collection' ? t('purchase.supportPromptCollection') : t('purchase.supportPrompt', { item: itemLabel })}
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {donationsEnabled &&
