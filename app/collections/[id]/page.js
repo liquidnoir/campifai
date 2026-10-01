@@ -53,7 +53,8 @@ export default function CollectionPage() {
   const [collectionAccess, setCollectionAccess] = useState(null) // null/true/false
   const [releaseAccess, setReleaseAccess] = useState({}) // { [releaseId]: true/false }
   const [downloadState, setDownloadState] = useState({}) // { [releaseId]: { busy, progress, error } }
-  const [collectionDownload, setCollectionDownload] = useState({ busy: false, progress: null, error: null })
+  const [collectionDownload, setCollectionDownload] = useState({ busy: false, progress: null, stage: null, error: null })
+  const [downloadFormat, setDownloadFormat] = useState('original')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -112,7 +113,7 @@ export default function CollectionPage() {
   }
 
   async function handleDownloadCollection() {
-    setCollectionDownload({ busy: true, progress: null, error: null })
+    setCollectionDownload({ busy: true, progress: null, stage: null, error: null })
     try {
       const releaseIds = releases.map((r) => r.id)
       const { data: trackData, error: trackError } = await supabase
@@ -143,14 +144,15 @@ export default function CollectionPage() {
       await downloadCollectionZip(
         collectionTitle(collection, t),
         groups,
-        (current, total) => {
-          setCollectionDownload({ busy: true, progress: { current, total }, error: null })
+        (current, total, stage) => {
+          setCollectionDownload({ busy: true, progress: { current, total }, stage, error: null })
         },
-        t
+        t,
+        downloadFormat
       )
-      setCollectionDownload({ busy: false, progress: null, error: null })
+      setCollectionDownload({ busy: false, progress: null, stage: null, error: null })
     } catch (err) {
-      setCollectionDownload({ busy: false, progress: null, error: err.message || t('release.downloadFailed') })
+      setCollectionDownload({ busy: false, progress: null, stage: null, error: err.message || t('release.downloadFailed') })
     }
   }
 
@@ -198,18 +200,36 @@ export default function CollectionPage() {
               {collectionAccess === true && (
                 <div>
                   <p className="notice" style={{ marginBottom: 12 }}>{t('collectionPage.hasAccess')}</p>
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={collectionDownload.busy}
-                    onClick={handleDownloadCollection}
-                  >
-                    {collectionDownload.busy
-                      ? collectionDownload.progress
-                        ? t('common.fetching', { current: collectionDownload.progress.current, total: collectionDownload.progress.total })
-                        : t('common.preparing')
-                      : t('collectionPage.downloadWhole')}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                      value={downloadFormat}
+                      onChange={(e) => setDownloadFormat(e.target.value)}
+                      disabled={collectionDownload.busy}
+                      style={{ padding: '10px 8px' }}
+                    >
+                      <option value="original">{t('download.format.original')}</option>
+                      <option value="mp3">{t('download.format.mp3')}</option>
+                      <option value="flac">{t('download.format.flac')}</option>
+                    </select>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={collectionDownload.busy}
+                      onClick={handleDownloadCollection}
+                    >
+                      {collectionDownload.busy
+                        ? collectionDownload.progress
+                          ? t(collectionDownload.stage === 'convert' ? 'download.converting' : 'common.fetching', {
+                              current: collectionDownload.progress.current,
+                              total: collectionDownload.progress.total,
+                            })
+                          : t('common.preparing')
+                        : t('collectionPage.downloadWhole')}
+                    </button>
+                  </div>
+                  {downloadFormat !== 'original' && (
+                    <p className="notice" style={{ marginTop: 6 }}>{t('download.conversionNote')}</p>
+                  )}
                   {collectionDownload.error && <div className="error-msg">{collectionDownload.error}</div>}
                 </div>
               )}

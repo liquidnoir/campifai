@@ -26,7 +26,8 @@ function ReleaseContent() {
   const [tracks, setTracks] = useState([])
   const [loading, setLoading] = useState(true)
   const [hasAccess, setHasAccess] = useState(null) // null = tjekker, true/false = kendt
-  const [download, setDownload] = useState({ busy: false, progress: null, error: null })
+  const [download, setDownload] = useState({ busy: false, progress: null, stage: null, error: null })
+  const [downloadFormat, setDownloadFormat] = useState('original')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -100,16 +101,22 @@ function ReleaseContent() {
   }
 
   async function handleDownload() {
-    setDownload({ busy: true, progress: null, error: null })
+    setDownload({ busy: true, progress: null, stage: null, error: null })
     try {
       const playable = tracks.filter((t) => t.url)
       if (playable.length === 0) throw new Error(t('release.noTracksToDownload'))
-      await downloadReleaseZip(release, playable, (current, total) => {
-        setDownload({ busy: true, progress: { current, total }, error: null })
-      }, t)
-      setDownload({ busy: false, progress: null, error: null })
+      await downloadReleaseZip(
+        release,
+        playable,
+        (current, total, stage) => {
+          setDownload({ busy: true, progress: { current, total }, stage, error: null })
+        },
+        t,
+        downloadFormat
+      )
+      setDownload({ busy: false, progress: null, stage: null, error: null })
     } catch (err) {
-      setDownload({ busy: false, progress: null, error: err.message || t('release.downloadFailed') })
+      setDownload({ busy: false, progress: null, stage: null, error: err.message || t('release.downloadFailed') })
     }
   }
 
@@ -179,13 +186,31 @@ function ReleaseContent() {
           />
           {hasAccess === true && (
             <div style={{ marginBottom: 20 }}>
-              <button className="btn ghost" type="button" disabled={download.busy} onClick={handleDownload}>
-                {download.busy
-                  ? download.progress
-                    ? t('common.fetching', { current: download.progress.current, total: download.progress.total })
-                    : t('common.preparing')
-                  : t('common.download')}
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={downloadFormat}
+                  onChange={(e) => setDownloadFormat(e.target.value)}
+                  disabled={download.busy}
+                  style={{ padding: '10px 8px' }}
+                >
+                  <option value="original">{t('download.format.original')}</option>
+                  <option value="mp3">{t('download.format.mp3')}</option>
+                  <option value="flac">{t('download.format.flac')}</option>
+                </select>
+                <button className="btn ghost" type="button" disabled={download.busy} onClick={handleDownload}>
+                  {download.busy
+                    ? download.progress
+                      ? t(download.stage === 'convert' ? 'download.converting' : 'common.fetching', {
+                          current: download.progress.current,
+                          total: download.progress.total,
+                        })
+                      : t('common.preparing')
+                    : t('common.download')}
+                </button>
+              </div>
+              {downloadFormat !== 'original' && (
+                <p className="notice" style={{ marginTop: 6 }}>{t('download.conversionNote')}</p>
+              )}
               {download.error && <div className="error-msg">{download.error}</div>}
             </div>
           )}
