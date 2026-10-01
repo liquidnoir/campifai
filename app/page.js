@@ -76,11 +76,22 @@ export default function Home() {
   const [topTracks, setTopTracks] = useState([])
   const [collections, setCollections] = useState([])
   const [heroSettings, setHeroSettings] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      if (data.session) {
+        supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.session.user.id)
+          .single()
+          .then(({ data: profile }) => setIsAdmin(profile?.role === 'admin'))
+      }
+    })
     loadHome()
     getAppSettings(supabase).then(setHeroSettings)
   }, [])
@@ -156,14 +167,7 @@ export default function Home() {
         <div className="hero-inner">
           <div className="hero-text">
             <h1>{heroTitle}</h1>
-            <p>{heroBody}</p>
-            {session === null && (
-              <p className="notice" style={{ marginTop: 8 }}>
-                {t('home.hero.guestNotice.pre')} <Link href="/login">{t('home.hero.guestLogin')}</Link>{' '}
-                {t('home.hero.guestNotice.or')} <Link href="/signup">{t('home.hero.guestSignup')}</Link>{' '}
-                {t('home.hero.guestNotice.post')}
-              </p>
-            )}
+            <p style={{ whiteSpace: 'pre-line' }}>{heroBody}</p>
           </div>
           <div className="hero-art">
             <img
@@ -253,11 +257,13 @@ export default function Home() {
                     {tr.releases?.artists?.name || t('home.unknownArtist')} · {tr.releases?.title}
                   </div>
                 </div>
-                <div className="notice" style={{ flexShrink: 0 }}>
-                  {t(tr.play_count === 1 ? 'home.topTracks.play_one' : 'home.topTracks.play_other', {
-                    count: tr.play_count,
-                  })}
-                </div>
+                {isAdmin && (
+                  <div className="notice" style={{ flexShrink: 0 }}>
+                    {t(tr.play_count === 1 ? 'home.topTracks.play_one' : 'home.topTracks.play_other', {
+                      count: tr.play_count,
+                    })}
+                  </div>
+                )}
               </Link>
             ))}
           </div>

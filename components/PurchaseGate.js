@@ -120,7 +120,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
           ))}
         {purchasesEnabled && (
           <button className="btn ghost" type="button" onClick={() => setCardOpen((open) => !open)}>
-            {t('purchase.payByCard')}
+            {scope === 'collection' ? t('purchase.buyCollection') : t('purchase.payByCard')}
           </button>
         )}
       </div>
