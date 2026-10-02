@@ -10,7 +10,7 @@ import { useLanguage } from './LanguageProvider'
 // releaseType: KUN relevant når scope === 'release' — skal være den ægte type
 //   (single/ep/album) fra databasen, da den styrer minimums- og forslagsprisen.
 // onGranted: kaldes efter et gennemført donations-"køb", så forælderen kan opdatere adgangen
-export default function PurchaseGate({ scope, releaseId, collectionId, releaseType, itemLabel, hasAccess, onGranted }) {
+export default function PurchaseGate({ scope, releaseId, collectionId, releaseType, hasAccess, onGranted }) {
   const { t } = useLanguage()
   const rules = getPricingRules(scope, releaseType)
   const [settings, setSettings] = useState(null) // null = henter stadig
@@ -103,7 +103,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
   return (
     <div className="panel" style={{ marginBottom: 20 }}>
       <p className="notice" style={{ marginBottom: 12 }}>
-        {scope === 'collection' ? t('purchase.supportPromptCollection') : t('purchase.supportPrompt', { item: itemLabel })}
+        {t('purchase.supportPrompt')}
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {donationsEnabled &&

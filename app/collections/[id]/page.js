@@ -54,7 +54,7 @@ export default function CollectionPage() {
   const [releaseAccess, setReleaseAccess] = useState({}) // { [releaseId]: true/false }
   const [downloadState, setDownloadState] = useState({}) // { [releaseId]: { busy, progress, error } }
   const [collectionDownload, setCollectionDownload] = useState({ busy: false, progress: null, stage: null, error: null })
-  const [downloadFormat, setDownloadFormat] = useState('mp3')
+  const [downloadFormat, setDownloadFormat] = useState('') // tom = intet format valgt endnu
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -113,6 +113,7 @@ export default function CollectionPage() {
   }
 
   async function handleDownloadCollection() {
+    if (!downloadFormat) return
     setCollectionDownload({ busy: true, progress: null, stage: null, error: null })
     try {
       const releaseIds = releases.map((r) => r.id)
@@ -207,13 +208,19 @@ export default function CollectionPage() {
                       disabled={collectionDownload.busy}
                       style={{ padding: '10px 8px' }}
                     >
-                      <option value="mp3">{t('download.format.mp3')}</option>
-                      <option value="flac">{t('download.format.flac')}</option>
+                      <option value="" disabled hidden>{t('download.format.placeholder')}</option>
+                      {['mp3', 'flac'].map((fmt) => (
+                        <option key={fmt} value={fmt}>
+                          {downloadFormat === fmt
+                            ? t('download.format.selected', { format: t(`download.format.${fmt}`) })
+                            : t(`download.format.${fmt}`)}
+                        </option>
+                      ))}
                     </select>
                     <button
                       className="btn"
                       type="button"
-                      disabled={collectionDownload.busy}
+                      disabled={collectionDownload.busy || !downloadFormat}
                       onClick={handleDownloadCollection}
                     >
                       {collectionDownload.busy
