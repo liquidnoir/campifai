@@ -331,7 +331,10 @@ export default function CollectionsAdminPage() {
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Link href={`/admin/collections/${c.id}`} className="btn">
+                {t('adminCollections.manageReleases')}
+              </Link>
               <button className="btn ghost" type="button" onClick={() => startEdit(c)}>
                 {t('common.edit')}
               </button>
