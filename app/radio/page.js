@@ -1,23 +1,17 @@
 'use client'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import QueuePlayer from '../../components/QueuePlayer'
+import { buildRadioPools, takeNextBatch } from '../../lib/radioPool'
 import { useLanguage } from '../../components/LanguageProvider'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
-// Maks. antal numre, der hentes ind i kanalen ad gangen
-const MAX_CHANNEL_TRACKS = 40
-
-function shuffle(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
+// Antal numre, der lægges i kanalen ad gangen (hver portion får sine egne afspilningslinks)
+const BATCH_SIZE = 40
+// Maks. antal numre, der overvejes i alt (radioen vælger blandt dem)
+const CATALOG_LIMIT = 1000
 
 function RadioContent() {
   const { t } = useLanguage()
@@ -28,6 +22,10 @@ function RadioContent() {
   const [session, setSession] = useState(undefined)
   const [tracks, setTracks] = useState(null) // null = ikke hentet endnu
   const [error, setError] = useState('')
+  // Er genrens uafspillede numre brugt op, så radioen er gået over til andre genrer?
+  const [switched, setSwitched] = useState(false)
+  // Numre, der endnu ikke er lagt i køen: genrens egne, og alle andre
+  const poolsRef = useRef({ genre: [], other: [] })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -48,49 +46,52 @@ function RadioContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, genre])
 
+  // Henter afspilningslinks til en række numre og gør dem klar til afspilleren
+  async function prepareTracks(rows) {
+    const urlByPath = {}
+    const { data: signed } = await supabase.storage
+      .from('tracks')
+      .createSignedUrls(rows.map((row) => row.audio_path), SIGNED_URL_SECONDS)
+    for (const item of signed || []) {
+      if (item.signedUrl) urlByPath[item.path] = item.signedUrl
+    }
+    return rows
+      .filter((tr) => urlByPath[tr.audio_path])
+      .map((tr) => ({
+        id: tr.id,
+        title: tr.title,
+        artistName: tr.artists?.name || tr.releases?.artists?.name || t('home.unknownArtist'),
+        releaseTitle: tr.releases?.title,
+        url: urlByPath[tr.audio_path],
+      }))
+  }
+
+  // Næste portion til køen: genrens uafspillede numre først, derefter tilfældige numre fra
+  // andre genrer. Returnerer [] først, når ALT er lagt i køen.
+  async function takeBatch() {
+    for (;;) {
+      const { rows, fromOtherGenres } = takeNextBatch(poolsRef.current, BATCH_SIZE)
+      if (rows.length === 0) return []
+      if (fromOtherGenres) setSwitched(true)
+      const ready = await prepareTracks(rows)
+      if (ready.length > 0) return ready
+      // Ingen i denne portion kunne afspilles (fx manglende filer) — prøv næste portion
+    }
+  }
+
   async function loadChannel() {
     const { data, error: fetchError } = await supabase
       .from('tracks')
       .select('id, title, audio_path, release_id, artists ( name ), releases!inner ( title, genre, artist_id, artists ( name ) )')
-      .eq('releases.genre', genre)
-      .limit(200)
+      .limit(CATALOG_LIMIT)
     if (fetchError) {
       setError(fetchError.message)
       setTracks([])
       return
     }
-    let list = data || []
-    let ordered = shuffle(list)
-    if (fromTrackId) {
-      const idx = ordered.findIndex((t) => t.id === fromTrackId)
-      if (idx > 0) {
-        const [first] = ordered.splice(idx, 1)
-        ordered = [first, ...ordered]
-      }
-    }
-    ordered = ordered.slice(0, MAX_CHANNEL_TRACKS)
-
-    const urlByPath = {}
-    if (ordered.length > 0) {
-      const { data: signed } = await supabase.storage
-        .from('tracks')
-        .createSignedUrls(ordered.map((t) => t.audio_path), SIGNED_URL_SECONDS)
-      for (const s of signed || []) {
-        if (s.signedUrl) urlByPath[s.path] = s.signedUrl
-      }
-    }
-
-    setTracks(
-      ordered
-        .filter((tr) => urlByPath[tr.audio_path])
-        .map((tr) => ({
-          id: tr.id,
-          title: tr.title,
-          artistName: tr.artists?.name || tr.releases?.artists?.name || t('home.unknownArtist'),
-          releaseTitle: tr.releases?.title,
-          url: urlByPath[tr.audio_path],
-        }))
-    )
+    poolsRef.current = buildRadioPools(data || [], genre, fromTrackId)
+    setSwitched(false)
+    setTracks(await takeBatch())
   }
 
   async function handleTrackStart(tr) {
@@ -108,10 +109,14 @@ function RadioContent() {
       <h2>{t('radio.titleWithGenre', { genre })}</h2>
       <p className="notice" style={{ marginTop: 8, marginBottom: 20 }}>{t('radio.subtitle')}</p>
       {error && <p className="error-msg">{error}</p>}
+      {switched && (
+        <p className="notice" style={{ marginBottom: 12 }}>{t('radio.switchedToOthers', { genre })}</p>
+      )}
       <QueuePlayer
         tracks={tracks}
         autoStart
         loop
+        onNeedMore={takeBatch}
         onTrackStart={handleTrackStart}
         emptyMessage={t('radio.noTracksInGenre')}
       />

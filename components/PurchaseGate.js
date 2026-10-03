@@ -142,25 +142,25 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
           <div className="field" style={{ maxWidth: 260 }}>
             <label htmlFor={`amount-${scope}`}>
               {rules.minCents === 0
-                ? t('purchase.card.amountLabel', {
-                    suggested: formatEur(rules.suggestedCents, lang),
-                    max: formatEur(rules.maxCents, lang),
-                  })
+                ? t('purchase.card.amountLabel')
                 : t('purchase.card.amountLabelMin', {
-                    suggested: formatEur(rules.suggestedCents, lang),
                     min: formatEur(rules.minCents, lang),
                     max: formatEur(rules.maxCents, lang),
                   })}
             </label>
-            <input
-              id={`amount-${scope}`}
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              disabled={cardBusy}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                id={`amount-${scope}`}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={cardBusy}
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <span className="notice" style={{ margin: 0 }}>EUR</span>
+            </div>
           </div>
           <button className="btn" type="submit" disabled={cardBusy}>
             {cardBusy ? t('purchase.card.redirecting') : t('purchase.card.continue')}
