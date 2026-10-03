@@ -51,17 +51,23 @@ export async function POST(req) {
   const { scope, releaseId, collectionId, amount } = body || {}
   if (scope !== 'release' && scope !== 'collection') return json({ error: 'bad_request' }, 400)
 
-  // Find varen i databasen først, så navn, eksistens og — for en udgivelse —
-  // typen (single/ep/album) altid kommer fra os selv, aldrig fra klienten.
+  // Find varen i databasen først, så navn, eksistens og — for en udgivelse — typen
+  // (single/ep/album) og publisherens egne priser altid kommer fra os selv, aldrig fra klienten.
   let title
   let path
   let releaseType
+  let releaseRow
   if (scope === 'release') {
-    const { data } = await admin.from('releases').select('id, title, type').eq('id', releaseId).maybeSingle()
+    const { data } = await admin
+      .from('releases')
+      .select('id, title, type, price_min_cents, price_suggested_cents, price_max_cents')
+      .eq('id', releaseId)
+      .maybeSingle()
     if (!data) return json({ error: 'not_found' }, 404)
     title = data.title
     path = `/release/${data.id}`
     releaseType = data.type
+    releaseRow = data
   } else {
     const { data } = await admin
       .from('collections')
@@ -73,8 +79,9 @@ export async function POST(req) {
     path = `/collections/${data.id}`
   }
 
-  // Beløbet valideres altid på serveren, ud fra den ægte type — klientens tal stoles der ikke på.
-  const parsed = parseAmountToCents(amount, scope, releaseType)
+  // Beløbet valideres altid på serveren, ud fra udgivelsens egne priser (eller standarden for
+  // den ægte type) — klientens tal stoles der ikke på.
+  const parsed = parseAmountToCents(amount, scope, releaseType, releaseRow)
   if (!parsed.ok) return json({ error: 'amount_invalid' }, 400)
 
   const metadata = { user_id: user.id, scope }

@@ -15,6 +15,8 @@ import {
   uploadImage,
 } from '../../lib/shared'
 import { useLanguage } from '../../components/LanguageProvider'
+import PriceFields from '../../components/PriceFields'
+import { priceColumns, priceFormFromRelease, validatePriceSettings } from '../../lib/pricing'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_LIMITS)
@@ -77,7 +79,7 @@ function Thumb({ url, color, radius = 8 }) {
 }
 
 export default function Dashboard() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [session, setSession] = useState(undefined)
   const [profile, setProfile] = useState(null)
   const [artists, setArtists] = useState([])
@@ -103,6 +105,7 @@ export default function Dashboard() {
   const [newReleaseType, setNewReleaseType] = useState('single')
   const [newReleaseGenre, setNewReleaseGenre] = useState('')
   const [newReleaseImage, setNewReleaseImage] = useState(null)
+  const [newPrice, setNewPrice] = useState({ custom: false, min: '', suggested: '', max: '' })
   const [creatingRelease, setCreatingRelease] = useState(false)
   const [releaseError, setReleaseError] = useState('')
 
@@ -112,6 +115,7 @@ export default function Dashboard() {
   const [editReleaseType, setEditReleaseType] = useState('single')
   const [editReleaseGenre, setEditReleaseGenre] = useState('')
   const [editReleaseImage, setEditReleaseImage] = useState(null)
+  const [editPrice, setEditPrice] = useState({ custom: false, min: '', suggested: '', max: '' })
   const [savingRelease, setSavingRelease] = useState(false)
 
   // Redigering af numre inde i en udgivelse
@@ -304,6 +308,16 @@ export default function Dashboard() {
       setReleaseError(t('dashboard.releases.titleRequired'))
       return
     }
+    // Egne priser (hvis valgt) kontrolleres, før noget gemmes
+    let priceCents = null
+    if (newPrice.custom) {
+      const checked = validatePriceSettings(newPrice)
+      if (!checked.ok) {
+        setReleaseError(t(`price.error.${checked.error}`))
+        return
+      }
+      priceCents = checked.cents
+    }
     setCreatingRelease(true)
     try {
       const { data: created, error } = await supabase
@@ -314,6 +328,7 @@ export default function Dashboard() {
           title: titleValue,
           type: newReleaseType,
           genre: newReleaseGenre.trim() || null,
+          ...priceColumns(priceCents),
         })
         .select()
         .single()
@@ -329,6 +344,7 @@ export default function Dashboard() {
       setNewReleaseType('single')
       setNewReleaseGenre('')
       setNewReleaseImage(null)
+      setNewPrice({ custom: false, min: '', suggested: '', max: '' })
       loadAll(session.user.id)
     } catch (err) {
       setReleaseError(err.message || t('common.somethingWrong'))
@@ -343,6 +359,7 @@ export default function Dashboard() {
     setEditReleaseType(r.type)
     setEditReleaseGenre(r.genre || '')
     setEditReleaseImage(null)
+    setEditPrice(priceFormFromRelease(r, lang))
     setTrackEdits({})
     setNewTrackTitle('')
     setNewTrackArtistId(r.artist_id)
@@ -368,9 +385,23 @@ export default function Dashboard() {
       )
       return
     }
+    let priceCents = null
+    if (editPrice.custom) {
+      const checked = validatePriceSettings(editPrice)
+      if (!checked.ok) {
+        setReleaseError(t(`price.error.${checked.error}`))
+        return
+      }
+      priceCents = checked.cents
+    }
     setSavingRelease(true)
     try {
-      const changes = { title: titleValue, type: editReleaseType, genre: editReleaseGenre.trim() || null }
+      const changes = {
+        title: titleValue,
+        type: editReleaseType,
+        genre: editReleaseGenre.trim() || null,
+        ...priceColumns(priceCents),
+      }
       if (editReleaseImage) {
         const path = await uploadImage(supabase, session.user.id, 'release', editReleaseImage, t)
         changes.cover_path = path
@@ -754,6 +785,7 @@ export default function Dashboard() {
                       placeholder={t('dashboard.releases.genrePlaceholder')}
                     />
                   </div>
+                  <PriceFields type={editReleaseType} value={editPrice} onChange={setEditPrice} disabled={savingRelease} />
                   <ImagePicker
                     label={t('dashboard.coverArtLabel')}
                     currentUrl={imagePublicUrl(supabase, r.cover_path)}
@@ -910,6 +942,7 @@ export default function Dashboard() {
                 placeholder={t('dashboard.releases.genrePlaceholder')}
               />
             </div>
+            <PriceFields type={newReleaseType} value={newPrice} onChange={setNewPrice} disabled={creatingRelease} />
             <ImagePicker
               label={t('dashboard.coverArtLabel')}
               currentUrl={null}

@@ -47,7 +47,7 @@ function ReleaseContent() {
     const { data: releaseData } = await supabase
       .from('releases')
       .select(
-        'id, title, type, color, cover_path, genre, artist_id, publisher_id, artists ( name ), profiles ( display_name )'
+        'id, title, type, color, cover_path, genre, artist_id, publisher_id, price_min_cents, price_suggested_cents, price_max_cents, artists ( name ), profiles ( display_name )'
       )
       .eq('id', id)
       .single()
@@ -182,6 +182,7 @@ function ReleaseContent() {
             scope="release"
             releaseId={release.id}
             releaseType={release.type}
+            priceOverrides={release}
             itemLabel={t('purchase.thisRelease', { title: release.title })}
             hasAccess={hasAccess}
             onGranted={checkAccess}

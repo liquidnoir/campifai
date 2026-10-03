@@ -2,22 +2,23 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DONATION_OPTIONS, recordPurchase } from '../lib/purchases'
-import { getPricingRules, parseAmountToCents } from '../lib/pricing'
+import { centsToInput, formatEur, getPricingRules, parseAmountToCents } from '../lib/pricing'
 import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from './LanguageProvider'
 
 // hasAccess: bool | null (null = tjekker stadig)
 // releaseType: KUN relevant når scope === 'release' — skal være den ægte type
 //   (single/ep/album) fra databasen, da den styrer minimums- og forslagsprisen.
+// priceOverrides: udgivelsen selv (med publisherens egne priser, hvis de er sat); bruges kun for scope "release"
 // onGranted: kaldes efter et gennemført donations-"køb", så forælderen kan opdatere adgangen
-export default function PurchaseGate({ scope, releaseId, collectionId, releaseType, hasAccess, onGranted }) {
-  const { t } = useLanguage()
-  const rules = getPricingRules(scope, releaseType)
+export default function PurchaseGate({ scope, releaseId, collectionId, releaseType, priceOverrides, hasAccess, onGranted }) {
+  const { t, lang } = useLanguage()
+  const rules = getPricingRules(scope, releaseType, priceOverrides)
   const [settings, setSettings] = useState(null) // null = henter stadig
   const [busyKey, setBusyKey] = useState('')
   const [error, setError] = useState('')
   const [cardOpen, setCardOpen] = useState(false)
-  const [amount, setAmount] = useState(String(rules?.suggestedEur ?? ''))
+  const [amount, setAmount] = useState(rules ? centsToInput(rules.suggestedCents, lang) : '')
   const [cardBusy, setCardBusy] = useState(false)
 
   useEffect(() => {
@@ -51,12 +52,23 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
     onGranted?.()
   }
 
+  // Fejltekst, der passer til reglerne: "0 er gratis" kun hvis mindsteprisen er 0
+  function invalidAmountMessage() {
+    if (!rules) return t('purchase.card.failed')
+    return rules.minCents === 0
+      ? t('purchase.card.invalidAmount', { max: formatEur(rules.maxCents, lang) })
+      : t('purchase.card.invalidAmountMin', {
+          min: formatEur(rules.minCents, lang),
+          max: formatEur(rules.maxCents, lang),
+        })
+  }
+
   async function handleCard(event) {
     event.preventDefault()
     setError('')
-    const parsed = parseAmountToCents(amount, scope, releaseType)
+    const parsed = parseAmountToCents(amount, scope, releaseType, priceOverrides)
     if (!parsed.ok || !rules) {
-      setError(t('purchase.card.invalidAmount', { max: rules?.maxEur ?? '?' }))
+      setError(invalidAmountMessage())
       return
     }
     setCardBusy(true)
@@ -72,7 +84,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
       if (!res.ok || !body.url) {
         setError(
           body.error === 'amount_invalid'
-            ? t('purchase.card.invalidAmount', { max: rules.maxEur })
+            ? invalidAmountMessage()
             : body.error === 'purchases_disabled'
               ? t('purchase.card.disabled')
               : t('purchase.card.failed')
@@ -129,7 +141,16 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
         <form onSubmit={handleCard} style={{ marginTop: 16 }}>
           <div className="field" style={{ maxWidth: 260 }}>
             <label htmlFor={`amount-${scope}`}>
-              {t('purchase.card.amountLabel', { suggested: rules.suggestedEur, max: rules.maxEur })}
+              {rules.minCents === 0
+                ? t('purchase.card.amountLabel', {
+                    suggested: formatEur(rules.suggestedCents, lang),
+                    max: formatEur(rules.maxCents, lang),
+                  })
+                : t('purchase.card.amountLabelMin', {
+                    suggested: formatEur(rules.suggestedCents, lang),
+                    min: formatEur(rules.minCents, lang),
+                    max: formatEur(rules.maxCents, lang),
+                  })}
             </label>
             <input
               id={`amount-${scope}`}

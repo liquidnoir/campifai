@@ -12,6 +12,8 @@ import {
   uploadImage,
 } from '../../../../lib/shared'
 import { useLanguage } from '../../../../components/LanguageProvider'
+import PriceFields from '../../../../components/PriceFields'
+import { priceColumns, priceFormFromRelease, validatePriceSettings } from '../../../../lib/pricing'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -22,7 +24,7 @@ function Msg({ msg }) {
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_LIMITS)
 
 export default function AdminReleaseEditPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const { id } = useParams()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
@@ -39,6 +41,7 @@ export default function AdminReleaseEditPage() {
   const [genre, setGenre] = useState('')
   const [artistId, setArtistId] = useState('')
   const [coverFile, setCoverFile] = useState(null)
+  const [price, setPrice] = useState({ custom: false, min: '', suggested: '', max: '' })
   const [savingRelease, setSavingRelease] = useState(false)
   const [releaseMsg, setReleaseMsg] = useState(null)
 
@@ -94,6 +97,7 @@ export default function AdminReleaseEditPage() {
     setType(r.type)
     setGenre(r.genre || '')
     setArtistId(r.artist_id)
+    setPrice(priceFormFromRelease(r, lang))
     setTracks(tracksRes.data || [])
     setArtists(artistsRes.data || [])
     setTrackEdits({})
@@ -114,9 +118,18 @@ export default function AdminReleaseEditPage() {
       setReleaseMsg({ type: 'error', text: t('dashboard.releases.titleEmpty') })
       return
     }
+    let priceCents = null
+    if (price.custom) {
+      const checked = validatePriceSettings(price)
+      if (!checked.ok) {
+        setReleaseMsg({ type: 'error', text: t(`price.error.${checked.error}`) })
+        return
+      }
+      priceCents = checked.cents
+    }
     setSavingRelease(true)
     try {
-      const changes = { title: titleValue, type, genre: genre.trim() || null }
+      const changes = { title: titleValue, type, genre: genre.trim() || null, ...priceColumns(priceCents) }
       if (artistId && artistId !== release.artist_id) changes.artist_id = artistId
       if (coverFile) {
         changes.cover_path = await uploadImage(supabase, session.user.id, 'release', coverFile, t)
@@ -253,6 +266,7 @@ export default function AdminReleaseEditPage() {
           </select>
           <div className="notice" style={{ marginTop: 6 }}>{t('adminRelease.artistHint')}</div>
         </div>
+        <PriceFields type={type} value={price} onChange={setPrice} disabled={savingRelease} />
         <div className="field">
           <label>{t('dashboard.coverArtLabel')}</label>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
