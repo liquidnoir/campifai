@@ -118,6 +118,8 @@ export default function Dashboard() {
   const [trackEdits, setTrackEdits] = useState({}) // { [trackId]: { title } }
   const [savingTrackId, setSavingTrackId] = useState(null)
   const [newTrackTitle, setNewTrackTitle] = useState('')
+  const [newTrackArtistId, setNewTrackArtistId] = useState('') // tom = udgivelsens kunstner
+  const [reorderBusy, setReorderBusy] = useState(false)
   const [newTrackFile, setNewTrackFile] = useState(null)
   const [trackUploadError, setTrackUploadError] = useState('')
   const [uploadingTrack, setUploadingTrack] = useState(false)
@@ -151,7 +153,12 @@ export default function Dashboard() {
         .select('*, artists ( name )')
         .eq('publisher_id', uid)
         .order('created_at', { ascending: false }),
-      supabase.from('tracks').select('*').eq('publisher_id', uid).order('created_at', { ascending: true }),
+      supabase
+        .from('tracks')
+        .select('*, artists ( name )')
+        .eq('publisher_id', uid)
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true }),
     ])
     const artistList = artistsRes.data || []
     setArtists(artistList)
@@ -338,6 +345,7 @@ export default function Dashboard() {
     setEditReleaseImage(null)
     setTrackEdits({})
     setNewTrackTitle('')
+    setNewTrackArtistId(r.artist_id)
     setNewTrackFile(null)
     setTrackUploadError('')
   }
@@ -417,7 +425,9 @@ export default function Dashboard() {
   function trackDirty(t) {
     const e = trackEdits[t.id]
     if (!e) return false
-    return e.title !== undefined && e.title.trim() !== t.title
+    const titleChanged = e.title !== undefined && e.title.trim() !== t.title
+    const artistChanged = e.artist_id !== undefined && e.artist_id !== t.artist_id
+    return titleChanged || artistChanged
   }
 
   async function saveTrack(tr) {
@@ -427,7 +437,10 @@ export default function Dashboard() {
       return
     }
     setSavingTrackId(tr.id)
-    const { error } = await supabase.from('tracks').update({ title }).eq('id', tr.id)
+    const changes = { title }
+    const chosenArtist = trackValue(tr, 'artist_id')
+    if (chosenArtist && chosenArtist !== tr.artist_id) changes.artist_id = chosenArtist
+    const { error } = await supabase.from('tracks').update(changes).eq('id', tr.id)
     setSavingTrackId(null)
     if (error) {
       setTrackUploadError(error.message)
@@ -438,6 +451,26 @@ export default function Dashboard() {
       delete next[tr.id]
       return next
     })
+    loadAll(session.user.id)
+  }
+
+  async function moveTrack(release, index, delta) {
+    const list = tracksFor(release.id)
+    const target = index + delta
+    if (target < 0 || target >= list.length) return
+    const ids = list.map((tr) => tr.id)
+    ;[ids[index], ids[target]] = [ids[target], ids[index]]
+    setReorderBusy(true)
+    setTrackUploadError('')
+    const { error } = await supabase.rpc('set_release_track_order', {
+      p_release_id: release.id,
+      p_track_ids: ids,
+    })
+    setReorderBusy(false)
+    if (error) {
+      setTrackUploadError(error.message)
+      return
+    }
     loadAll(session.user.id)
   }
 
@@ -497,6 +530,7 @@ export default function Dashboard() {
       title: titleValue,
       audio_path: path,
       color,
+      artist_id: newTrackArtistId || release.artist_id,
     })
     if (insertError) {
       await supabase.storage.from('tracks').remove([path])
@@ -505,6 +539,7 @@ export default function Dashboard() {
       return
     }
     setNewTrackTitle('')
+    setNewTrackArtistId(release.artist_id)
     setNewTrackFile(null)
     form.reset()
     setUploadingTrack(false)
@@ -518,7 +553,12 @@ export default function Dashboard() {
     return (
       <section>
         <h2>{t('nav.releases')}</h2>
-        <p className="notice" style={{ marginTop: 12 }}>{t('dashboard.listenerBlocked')}</p>
+        <p className="notice" style={{ marginTop: 12 }}>
+          {profile.publisher_requested ? t('dashboard.listenerPending') : t('dashboard.listenerBlocked')}
+        </p>
+        <p style={{ marginTop: 12 }}>
+          <Link href="/account">{t('nav.account')}</Link>
+        </p>
       </section>
     )
   }
@@ -730,11 +770,48 @@ export default function Dashboard() {
                   {releaseTracks.length === 0 && (
                     <p className="notice" style={{ marginBottom: 12 }}>{t('dashboard.releases.noTracksYet')}</p>
                   )}
-                  {releaseTracks.map((tr) => (
+                  {releaseTracks.map((tr, idx) => (
                     <div key={tr.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 10, flexWrap: 'wrap' }}>
-                      <div className="field" style={{ margin: 0, flex: '1 1 220px' }}>
-                        <label>{t('common.title')}</label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <button
+                          className="btn ghost"
+                          type="button"
+                          style={{ padding: '2px 10px' }}
+                          aria-label={t('tracks.moveUp')}
+                          disabled={reorderBusy || idx === 0}
+                          onClick={() => moveTrack(r, idx, -1)}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          className="btn ghost"
+                          type="button"
+                          style={{ padding: '2px 10px' }}
+                          aria-label={t('tracks.moveDown')}
+                          disabled={reorderBusy || idx === releaseTracks.length - 1}
+                          onClick={() => moveTrack(r, idx, 1)}
+                        >
+                          ↓
+                        </button>
+                      </div>
+                      <div className="field" style={{ margin: 0, flex: '1 1 200px' }}>
+                        <label>{idx + 1}. {t('common.title')}</label>
                         <input value={trackValue(tr, 'title')} onChange={(e) => setTrackField(tr, 'title', e.target.value)} />
+                      </div>
+                      <div className="field" style={{ margin: 0, flex: '1 1 160px' }}>
+                        <label>{t('dashboard.releases.trackArtist')}</label>
+                        <select
+                          style={controlStyle}
+                          value={trackValue(tr, 'artist_id')}
+                          onChange={(e) => setTrackField(tr, 'artist_id', e.target.value)}
+                        >
+                          {!artists.some((a) => a.id === trackValue(tr, 'artist_id')) && (
+                            <option value={trackValue(tr, 'artist_id')}>{tr.artists?.name || '?'}</option>
+                          )}
+                          {artists.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <button
                         className="btn ghost"
@@ -755,6 +832,20 @@ export default function Dashboard() {
                     <div className="field">
                       <label>{t('common.title')}</label>
                       <input disabled={atLimit} value={newTrackTitle} onChange={(e) => setNewTrackTitle(e.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>{t('dashboard.releases.trackArtist')}</label>
+                      <select
+                        style={controlStyle}
+                        disabled={atLimit}
+                        value={newTrackArtistId || r.artist_id}
+                        onChange={(e) => setNewTrackArtistId(e.target.value)}
+                      >
+                        {artists.map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                      <div className="notice" style={{ marginTop: 6 }}>{t('dashboard.releases.trackArtistHint')}</div>
                     </div>
                     <div className="field">
                       <label>{t('dashboard.releases.audioFileLabel')}</label>

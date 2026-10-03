@@ -36,7 +36,9 @@ export default function Signup() {
     if (data.user) {
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
-        role,
+        // Alle starter som lyttere. Ønsker man at blive publisher, skal en admin godkende det.
+        role: 'listener',
+        publisher_requested: role === 'publisher',
         display_name: displayName.trim(),
       })
       if (profileError) {

@@ -233,6 +233,33 @@ export default function AdminPage() {
     await loadUsers()
   }
 
+  async function approvePublisher(u) {
+    setMsg(null)
+    setBusy(u.id)
+    // Rollen ændres; databasen rydder selv anmodningen, når rollen bliver publisher
+    const { error } = await supabase.from('profiles').update({ role: 'publisher' }).eq('id', u.id)
+    setBusy('')
+    if (error) {
+      setMsg({ type: 'error', text: error.message })
+      return
+    }
+    setMsg({ type: 'ok', text: t('admin.publisherApproved', { name: u.display_name }) })
+    await loadUsers()
+  }
+
+  async function rejectPublisher(u) {
+    setMsg(null)
+    setBusy(u.id)
+    const { error } = await supabase.from('profiles').update({ publisher_requested: false }).eq('id', u.id)
+    setBusy('')
+    if (error) {
+      setMsg({ type: 'error', text: error.message })
+      return
+    }
+    setMsg({ type: 'ok', text: t('admin.publisherRejected', { name: u.display_name }) })
+    await loadUsers()
+  }
+
   async function deleteUser(u) {
     setMsg(null)
     if (u.id === session.user.id) return
@@ -348,12 +375,16 @@ export default function AdminPage() {
   }
 
   const q = search.trim().toLowerCase()
-  const shownUsers = users.filter(
-    (u) =>
-      !q ||
-      u.display_name.toLowerCase().includes(q) ||
-      (u.email || '').toLowerCase().includes(q)
-  )
+  const isPending = (u) => u.publisher_requested && u.role === 'listener'
+  const pendingCount = users.filter(isPending).length
+  const shownUsers = users
+    .filter(
+      (u) =>
+        !q ||
+        u.display_name.toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q)
+    )
+    .sort((a, b) => Number(isPending(b)) - Number(isPending(a)))
   const shownArtists = artists.filter(
     (a) =>
       !q ||
@@ -373,6 +404,12 @@ export default function AdminPage() {
           artists: artists.length,
         })}
       </p>
+
+      {pendingCount > 0 && (
+        <p className="notice" style={{ marginTop: 12, color: '#D89A2E' }}>
+          {t('admin.pendingBanner', { count: pendingCount })}
+        </p>
+      )}
 
       {settings && (
         <div className="panel" style={{ maxWidth: 420, marginTop: 16, marginBottom: 8 }}>
@@ -489,6 +526,9 @@ export default function AdminPage() {
         <Link href="/admin/collections" className="btn ghost">
           {t('admin.collectionsLink')}
         </Link>
+        <Link href="/admin/releases" className="btn ghost">
+          {t('admin.releasesLink')}
+        </Link>
       </div>
 
       <div className="field" style={{ maxWidth: 420 }}>
@@ -509,6 +549,21 @@ export default function AdminPage() {
             const isAdminUser = u.role === 'admin'
             return (
               <div className="panel" key={u.id} style={{ marginBottom: 12 }}>
+                {isPending(u) && (
+                  <div style={{ marginBottom: 12 }}>
+                    <p className="notice" style={{ marginBottom: 8, color: '#D89A2E' }}>
+                      {t('admin.publisherPending')}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button className="btn" type="button" disabled={busy === u.id} onClick={() => approvePublisher(u)}>
+                        {t('admin.approvePublisher')}
+                      </button>
+                      <button className="btn ghost" type="button" disabled={busy === u.id} onClick={() => rejectPublisher(u)}>
+                        {t('admin.rejectPublisher')}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div style={gridStyle}>
                   <div className="field" style={{ margin: 0 }}>
                     <label>{t('signup.name')}{isMe ? ` ${t('admin.youSuffix')}` : ''}</label>

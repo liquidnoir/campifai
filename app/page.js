@@ -103,10 +103,10 @@ export default function Home() {
         .select('id, title, type, color, cover_path, genre, artist_id, artists ( name )')
         .order('created_at', { ascending: false }),
       supabase.from('artists').select('id, name, image_path').order('name', { ascending: true }),
-      supabase.from('tracks').select('id, title, release_id'),
+      supabase.from('tracks').select('id, title, release_id, artists ( name )'),
       supabase
         .from('tracks')
-        .select('id, title, play_count, release_id, releases ( title, artist_id, artists ( name ) )')
+        .select('id, title, play_count, release_id, artists ( name ), releases ( title, artist_id, artists ( name ) )')
         .gt('play_count', 0)
         .order('play_count', { ascending: false })
         .limit(10),
@@ -152,7 +152,9 @@ export default function Home() {
       if ((r.artists?.name || '').toLowerCase().includes(q)) return true
       if ((r.genre || '').toLowerCase().includes(q)) return true
       const relTracks = tracksByRelease[r.id] || []
-      return relTracks.some((tr) => tr.title.toLowerCase().includes(q))
+      return relTracks.some(
+        (tr) => tr.title.toLowerCase().includes(q) || (tr.artists?.name || '').toLowerCase().includes(q)
+      )
     })
   }, [releases, tracksByRelease, q, searching])
 
@@ -254,7 +256,7 @@ export default function Home() {
                 <div className="ttitle">
                   {tr.title}
                   <div className="notice">
-                    {tr.releases?.artists?.name || t('home.unknownArtist')} · {tr.releases?.title}
+                    {tr.artists?.name || tr.releases?.artists?.name || t('home.unknownArtist')} · {tr.releases?.title}
                   </div>
                 </div>
                 {isAdmin && (

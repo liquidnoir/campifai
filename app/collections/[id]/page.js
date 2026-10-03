@@ -121,6 +121,7 @@ export default function CollectionPage() {
         .from('tracks')
         .select('id, title, audio_path, release_id')
         .in('release_id', releaseIds)
+        .order('position', { ascending: true })
         .order('created_at', { ascending: true })
       if (trackError) throw trackError
       const allTracks = trackData || []

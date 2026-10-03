@@ -60,8 +60,9 @@ function ReleaseContent() {
 
     const { data: trackData } = await supabase
       .from('tracks')
-      .select('*')
+      .select('*, artists ( name )')
       .eq('release_id', id)
+      .order('position', { ascending: true })
       .order('created_at', { ascending: true })
     const trackList = trackData || []
 
@@ -225,7 +226,12 @@ function ReleaseContent() {
         {tracks.length === 0 && <p className="notice">{t('release.noTracksYet')}</p>}
         {tracks.length > 0 && canInteract && (
           <QueuePlayer
-            tracks={tracks.map((tr) => ({ id: tr.id, title: tr.title, url: tr.url }))}
+            tracks={tracks.map((tr) => ({
+              id: tr.id,
+              title: tr.title,
+              url: tr.url,
+              artistName: tr.artist_id !== release.artist_id ? tr.artists?.name || '' : '',
+            }))}
             startIndex={startIndex}
             onTrackStart={handleTrackStart}
             renderActions={(track) => (

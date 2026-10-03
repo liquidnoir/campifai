@@ -45,7 +45,7 @@ export default function PlaylistPage() {
 
     const { data: ptData } = await supabase
       .from('playlist_tracks')
-      .select('id, added_at, tracks ( id, title, audio_path, release_id, releases ( title, artist_id, artists ( name ) ) )')
+      .select('id, added_at, tracks ( id, title, audio_path, release_id, artists ( name ), releases ( title, artist_id, artists ( name ) ) )')
       .eq('playlist_id', id)
       .order('added_at', { ascending: true })
     const list = (ptData || []).filter((row) => row.tracks)
@@ -104,7 +104,7 @@ export default function PlaylistPage() {
     .map((r) => ({
       id: r.track.id,
       title: r.track.title,
-      artistName: r.track.releases?.artists?.name || t('home.unknownArtist'),
+      artistName: r.track.artists?.name || r.track.releases?.artists?.name || t('home.unknownArtist'),
       releaseTitle: r.track.releases?.title,
       url: r.track.url,
     }))
@@ -145,7 +145,7 @@ export default function PlaylistPage() {
               <div className="ttitle">
                 {row.track.title}
                 <div className="notice">
-                  {row.track.releases?.artists?.name || t('home.unknownArtist')} · {row.track.releases?.title}
+                  {row.track.artists?.name || row.track.releases?.artists?.name || t('home.unknownArtist')} · {row.track.releases?.title}
                 </div>
               </div>
               <button className="btn ghost" type="button" onClick={() => removeRow(row)}>

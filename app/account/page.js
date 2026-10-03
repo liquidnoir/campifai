@@ -21,6 +21,8 @@ export default function Account() {
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [profileMsg, setProfileMsg] = useState(null)
+  const [requestingPublisher, setRequestingPublisher] = useState(false)
+  const [requestMsg, setRequestMsg] = useState(null)
   const [savingProfile, setSavingProfile] = useState(false)
 
   const [newPassword, setNewPassword] = useState('')
@@ -49,6 +51,21 @@ export default function Account() {
     setDisplayName(data?.display_name || '')
     setBio(data?.bio || '')
     setLoading(false)
+  }
+
+  async function requestPublisher() {
+    setRequestMsg(null)
+    setRequestingPublisher(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ publisher_requested: true })
+      .eq('id', session.user.id)
+    setRequestingPublisher(false)
+    if (error) {
+      setRequestMsg({ type: 'error', text: error.message })
+      return
+    }
+    setProfile((prev) => ({ ...prev, publisher_requested: true }))
   }
 
   async function saveProfile(e) {
@@ -136,6 +153,23 @@ export default function Account() {
         <p className="notice" style={{ marginTop: 4 }}>
           {t('account.publisherHint', { max: MAX_ARTISTS })}
         </p>
+      )}
+
+      {profile.role === 'listener' && (
+        <div className="panel" style={{ maxWidth: 520, marginTop: 20 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 8 }}>{t('account.publisherRequest.title')}</h3>
+          {profile.publisher_requested ? (
+            <p className="notice" style={{ margin: 0 }}>{t('account.publisherRequest.pending')}</p>
+          ) : (
+            <>
+              <p className="notice" style={{ marginBottom: 12 }}>{t('account.publisherRequest.explain')}</p>
+              <Msg msg={requestMsg} />
+              <button className="btn" type="button" disabled={requestingPublisher} onClick={requestPublisher}>
+                {requestingPublisher ? t('common.saving') : t('account.publisherRequest.button')}
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <form onSubmit={saveProfile} className="panel" style={{ maxWidth: 520, marginTop: 20 }}>
