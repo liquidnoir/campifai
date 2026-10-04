@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { MAX_ARTISTS } from '../../lib/shared'
@@ -11,6 +12,7 @@ export default function Signup() {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState('listener')
+  const [accepted, setAccepted] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -24,6 +26,10 @@ export default function Signup() {
     }
     if (password.length < 6) {
       setError(t('signup.passwordTooShort'))
+      return
+    }
+    if (!accepted) {
+      setError(t('signup.mustAccept'))
       return
     }
     setLoading(true)
@@ -85,6 +91,20 @@ export default function Signup() {
           <label htmlFor="pw">{t('login.password')}</label>
           <input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, marginBottom: 14 }}>
+          <input
+            type="checkbox"
+            checked={accepted}
+            onChange={(e) => setAccepted(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            {t('signup.accept.before')}{' '}
+            <Link href="/terms" target="_blank" style={{ textDecoration: 'underline' }}>{t('signup.accept.terms')}</Link>{' '}
+            {t('signup.accept.and')}{' '}
+            <Link href="/privacy" target="_blank" style={{ textDecoration: 'underline' }}>{t('signup.accept.privacy')}</Link>
+          </span>
+        </label>
         {error && <div className="error-msg">{error}</div>}
         <button className="btn" type="submit" disabled={loading}>
           {loading ? t('signup.creating') : t('signup.title')}

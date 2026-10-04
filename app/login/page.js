@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../components/LanguageProvider'
@@ -46,6 +47,9 @@ export default function Login() {
           {loading ? t('login.loggingIn') : t('login.title')}
         </button>
       </form>
+      <p style={{ marginTop: 14 }}>
+        <Link href="/forgot-password">{t('login.forgot')}</Link>
+      </p>
     </section>
   )
 }

@@ -5,7 +5,17 @@ import { supabase } from '../lib/supabase'
 import { useLanguage } from './LanguageProvider'
 
 // Nøjagtige sider man må se uden login
-const PUBLIC_PATHS = ['/', '/login', '/signup']
+const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/signup',
+  '/terms',
+  '/privacy',
+  '/cookies',
+  '/contact',
+  '/forgot-password',
+  '/reset-password',
+]
 // Sider man må browse uden login (kun visning, aldrig afspilning, download eller upload)
 const PUBLIC_PREFIXES = ['/artist/', '/release/', '/collections/']
 
@@ -22,7 +32,11 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s)
+      // Linket i e-mailen om glemt adgangskode fører brugeren til siden, hvor man vælger en ny
+      if (event === 'PASSWORD_RECOVERY') router.replace('/reset-password')
+    })
     return () => listener.subscription.unsubscribe()
   }, [])
 

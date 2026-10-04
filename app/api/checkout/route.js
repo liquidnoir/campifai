@@ -1,6 +1,8 @@
 import Stripe from 'stripe'
 import { getAdminClient, getUserFromRequest } from '../../../lib/serverSupabase'
 import { CURRENCY, parseAmountToCents } from '../../../lib/pricing'
+import { translations } from '../../../lib/translations'
+import { SITE } from '../../../lib/siteInfo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,7 +50,7 @@ export async function POST(req) {
   } catch {
     return json({ error: 'bad_request' }, 400)
   }
-  const { scope, releaseId, collectionId, amount } = body || {}
+  const { scope, releaseId, collectionId, amount, consent, lang } = body || {}
   if (scope !== 'release' && scope !== 'collection') return json({ error: 'bad_request' }, 400)
 
   // Find varen i databasen først, så navn, eksistens og — for en udgivelse — typen
@@ -84,7 +86,18 @@ export async function POST(req) {
   const parsed = parseAmountToCents(amount, scope, releaseType, releaseRow)
   if (!parsed.ok) return json({ error: 'amount_invalid' }, 400)
 
+  // Fortrydelsesret: digitalt indhold leveres straks, og retten bortfalder kun, hvis køberen
+  // forud har givet udtrykkeligt samtykke og anerkendt det. Uden samtykke kan der ikke betales.
+  // (Gratis oplåsning, 0 EUR, er ikke et køb og kræver intet samtykke.)
+  const isPaid = parsed.cents > 0
+  if (isPaid && consent !== true) return json({ error: 'consent_required' }, 400)
+  const locale = lang === 'da' ? 'da' : 'en'
+
   const metadata = { user_id: user.id, scope }
+  if (isPaid) {
+    metadata.withdrawal_waiver_at = new Date().toISOString()
+    metadata.terms_version = SITE.legalUpdated
+  }
   if (scope === 'release') metadata.release_id = releaseId
   else metadata.collection_id = collectionId
 
@@ -107,6 +120,10 @@ export async function POST(req) {
       cancel_url: `${origin}${path}?canceled=1`,
       client_reference_id: user.id,
       customer_email: user.email || undefined,
+      locale,
+      ...(isPaid
+        ? { custom_text: { submit: { message: translations[locale]['purchase.stripeWaiver'] } } }
+        : {}),
       metadata,
     })
     return json({ url: session.url })

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { imagePublicUrl } from '../../../lib/shared'
 import { useLanguage } from '../../../components/LanguageProvider'
+import ReportLink from '../../../components/ReportLink'
 
 export default function ArtistPage() {
   const { t } = useLanguage()
@@ -106,6 +107,7 @@ export default function ArtistPage() {
           })}
         </div>
       </div>
+      <ReportLink />
     </section>
   )
 }

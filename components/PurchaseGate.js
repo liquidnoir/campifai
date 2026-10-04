@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { DONATION_OPTIONS, recordPurchase } from '../lib/purchases'
 import { centsToInput, formatEur, getPricingRules, parseAmountToCents } from '../lib/pricing'
@@ -20,6 +21,7 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
   const [cardOpen, setCardOpen] = useState(false)
   const [amount, setAmount] = useState(rules ? centsToInput(rules.suggestedCents, lang) : '')
   const [cardBusy, setCardBusy] = useState(false)
+  const [waiverAccepted, setWaiverAccepted] = useState(false)
 
   useEffect(() => {
     getAppSettings(supabase).then(setSettings)
@@ -71,6 +73,12 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
       setError(invalidAmountMessage())
       return
     }
+    // Digitalt indhold leveres straks, så fortrydelsesretten bortfalder — men kun hvis køberen
+    // forud udtrykkeligt samtykker og anerkender det. Gratis oplåsning (0 EUR) kræver intet.
+    if (parsed.cents > 0 && !waiverAccepted) {
+      setError(t('purchase.waiverRequired'))
+      return
+    }
     setCardBusy(true)
     try {
       const { data } = await supabase.auth.getSession()
@@ -78,16 +86,18 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ scope, releaseId, collectionId, amount }),
+        body: JSON.stringify({ scope, releaseId, collectionId, amount, consent: waiverAccepted, lang }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok || !body.url) {
         setError(
           body.error === 'amount_invalid'
             ? invalidAmountMessage()
-            : body.error === 'purchases_disabled'
-              ? t('purchase.card.disabled')
-              : t('purchase.card.failed')
+            : body.error === 'consent_required'
+              ? t('purchase.waiverRequired')
+              : body.error === 'purchases_disabled'
+                ? t('purchase.card.disabled')
+                : t('purchase.card.failed')
         )
         setCardBusy(false)
         return
@@ -98,6 +108,10 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
       setCardBusy(false)
     }
   }
+
+  // Samtykket skal først vises, når der skal betales noget (ikke ved gratis oplåsning)
+  const typed = parseAmountToCents(amount, scope, releaseType, priceOverrides)
+  const needsWaiver = typed.ok && typed.cents > 0
 
   if (hasAccess === null || settings === null) return <p className="notice">{t('common.loading')}</p>
   if (hasAccess) return null
@@ -162,6 +176,23 @@ export default function PurchaseGate({ scope, releaseId, collectionId, releaseTy
               <span className="notice" style={{ margin: 0 }}>EUR</span>
             </div>
           </div>
+          {needsWaiver && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={waiverAccepted}
+                onChange={(e) => setWaiverAccepted(e.target.checked)}
+                disabled={cardBusy}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                {t('purchase.waiver')}{' '}
+                <Link href="/terms#withdrawal" target="_blank" style={{ textDecoration: 'underline' }}>
+                  {t('purchase.waiverLink')}
+                </Link>
+              </span>
+            </label>
+          )}
           <button className="btn" type="submit" disabled={cardBusy}>
             {cardBusy ? t('purchase.card.redirecting') : t('purchase.card.continue')}
           </button>

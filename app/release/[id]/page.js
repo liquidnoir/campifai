@@ -13,6 +13,7 @@ import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 import QueuePlayer from '../../../components/QueuePlayer'
 import PurchaseGate from '../../../components/PurchaseGate'
 import PaymentReturn from '../../../components/PaymentReturn'
+import ReportLink from '../../../components/ReportLink'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
 const SIGNED_URL_SECONDS = 60 * 60 * 6
@@ -265,6 +266,7 @@ function ReleaseContent() {
           </div>
         )}
       </div>
+      <ReportLink />
     </section>
   )
 }

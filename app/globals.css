@@ -11,15 +11,15 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
 }
-h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 500; margin: 0; }
+h1, h2, h3 { font-family: var(--font-fraunces), 'Fraunces', serif; font-weight: 500; margin: 0; }
 a { color: inherit; text-decoration: none; }
 .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
 
 .top { border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
 .top-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; row-gap: 8px; padding: 16px 20px; max-width: 900px; margin: 0 auto; }
-.logo { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; white-space: nowrap; }
+.logo { font-family: var(--font-fraunces), 'Fraunces', serif; font-size: 22px; font-weight: 600; white-space: nowrap; }
 .top-inner nav { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; row-gap: 6px; font-size: 14px; color: var(--muted); }
 @media (max-width: 480px) {
   .logo { font-size: 18px; }
@@ -43,7 +43,7 @@ section { padding: 36px 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; }
 .sleeve { display: block; cursor: pointer; }
 .cover { aspect-ratio: 1; border-radius: 3px; display: flex; align-items: flex-end; padding: 12px; }
-.cover .title { font-family: 'Fraunces', serif; font-size: 16px; color: #fff; line-height: 1.2; }
+.cover .title { font-family: var(--font-fraunces), 'Fraunces', serif; font-size: 16px; color: #fff; line-height: 1.2; }
 .sleeve .meta { margin-top: 8px; }
 .sleeve .artist { font-size: 13px; font-weight: 500; }
 .sleeve .sub { font-size: 12px; color: var(--muted); }
@@ -63,3 +63,9 @@ section { padding: 36px 0; }
 .track-row { display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--border); }
 .track-row .ttitle { flex: 1; font-size: 15px; }
 .track-row audio { height: 32px; max-width: 220px; }
+
+/* Bund på alle sider */
+.site-footer { border-top: 1px solid var(--border); margin-top: 64px; padding: 24px 0 40px; font-size: 13px; color: var(--muted); }
+.site-footer a { color: inherit; }
+.site-footer a:hover { color: var(--ink); }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 8px; }
