@@ -16,6 +16,7 @@ import {
 } from '../../lib/shared'
 import { useLanguage } from '../../components/LanguageProvider'
 import PriceFields from '../../components/PriceFields'
+import BulkTrackUpload from '../../components/BulkTrackUpload'
 import { priceColumns, priceFormFromRelease, validatePriceSettings } from '../../lib/pricing'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
@@ -24,7 +25,6 @@ const RELEASE_TYPES = Object.keys(RELEASE_TYPE_LIMITS)
 // Supabase gratis-plan tillader højst 50 MB pr. fil.
 // Opgraderer du planen (og hæver grænsen under Storage → Settings), kan du ændre tallet her.
 const MAX_UPLOAD_MB = 50
-const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 function tooBigMessage(bytes, t) {
   const mb = (bytes / 1024 / 1024).toFixed(1)
@@ -121,12 +121,8 @@ export default function Dashboard() {
   // Redigering af numre inde i en udgivelse
   const [trackEdits, setTrackEdits] = useState({}) // { [trackId]: { title } }
   const [savingTrackId, setSavingTrackId] = useState(null)
-  const [newTrackTitle, setNewTrackTitle] = useState('')
-  const [newTrackArtistId, setNewTrackArtistId] = useState('') // tom = udgivelsens kunstner
   const [reorderBusy, setReorderBusy] = useState(false)
-  const [newTrackFile, setNewTrackFile] = useState(null)
   const [trackUploadError, setTrackUploadError] = useState('')
-  const [uploadingTrack, setUploadingTrack] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -361,9 +357,6 @@ export default function Dashboard() {
     setEditReleaseImage(null)
     setEditPrice(priceFormFromRelease(r, lang))
     setTrackEdits({})
-    setNewTrackTitle('')
-    setNewTrackArtistId(r.artist_id)
-    setNewTrackFile(null)
     setTrackUploadError('')
   }
 
@@ -512,69 +505,29 @@ export default function Dashboard() {
     loadAll(session.user.id)
   }
 
-  function handleNewTrackFile(e) {
-    const chosen = e.target.files[0] || null
-    setTrackUploadError('')
-    if (chosen && chosen.size > MAX_UPLOAD_BYTES) {
-      setNewTrackFile(null)
-      e.target.value = ''
-      setTrackUploadError(tooBigMessage(chosen.size, t))
-      return
-    }
-    setNewTrackFile(chosen)
-  }
-
-  async function handleUploadTrack(e, release) {
-    e.preventDefault()
-    const form = e.target
-    setTrackUploadError('')
-    const titleValue = newTrackTitle.trim()
-    if (!titleValue || !newTrackFile) {
-      setTrackUploadError(t('dashboard.tracks.needTitleAndFile'))
-      return
-    }
-    if (newTrackFile.size > MAX_UPLOAD_BYTES) {
-      setTrackUploadError(tooBigMessage(newTrackFile.size, t))
-      return
-    }
-    const existing = tracksFor(release.id)
-    if (existing.length >= RELEASE_TYPE_LIMITS[release.type]) {
-      setTrackUploadError(
-        t('dashboard.releases.atLimit', { type: t(`type.${release.type}`), limit: RELEASE_TYPE_LIMITS[release.type] })
-      )
-      return
-    }
-    setUploadingTrack(true)
-    const path = `${session.user.id}/${Date.now()}-${safeFileName(newTrackFile.name)}`
-    const { error: uploadErr } = await supabase.storage.from('tracks').upload(path, newTrackFile)
+  // Uploader ét nummer til en udgivelse: først filen, så rækken i databasen. Fejler det andet,
+  // fjernes den uploadede fil igen. Bruges af upload af flere numre på én gang.
+  async function uploadOneTrack(release, { file, title, artistId, slot }) {
+    const path = `${session.user.id}/${Date.now()}-${slot}-${safeFileName(file.name)}`
+    const { error: uploadErr } = await supabase.storage.from('tracks').upload(path, file)
     if (uploadErr) {
       const message = /maximum allowed size|too large|exceeded/i.test(uploadErr.message)
-        ? tooBigMessage(newTrackFile.size, t)
+        ? tooBigMessage(file.size, t)
         : uploadErr.message
-      setTrackUploadError(message)
-      setUploadingTrack(false)
-      return
+      return { ok: false, message }
     }
-    const color = COLORS[existing.length % COLORS.length]
     const { error: insertError } = await supabase.from('tracks').insert({
       release_id: release.id,
-      title: titleValue,
+      title,
       audio_path: path,
-      color,
-      artist_id: newTrackArtistId || release.artist_id,
+      color: COLORS[slot % COLORS.length],
+      artist_id: artistId || release.artist_id,
     })
     if (insertError) {
       await supabase.storage.from('tracks').remove([path])
-      setTrackUploadError(insertError.message)
-      setUploadingTrack(false)
-      return
+      return { ok: false, message: insertError.message }
     }
-    setNewTrackTitle('')
-    setNewTrackArtistId(release.artist_id)
-    setNewTrackFile(null)
-    form.reset()
-    setUploadingTrack(false)
-    loadAll(session.user.id)
+    return { ok: true }
   }
 
   if (session === undefined || (session && !profile)) return <p className="notice">{t('common.loading')}</p>
@@ -728,7 +681,6 @@ export default function Dashboard() {
         {releases.map((r) => {
           const releaseTracks = tracksFor(r.id)
           const limit = RELEASE_TYPE_LIMITS[r.type]
-          const atLimit = releaseTracks.length >= limit
           const isEditing = editingReleaseId === r.id
 
           return (
@@ -859,48 +811,18 @@ export default function Dashboard() {
                     </div>
                   ))}
 
-                  <form onSubmit={(e) => handleUploadTrack(e, r)} style={{ marginTop: 16 }}>
-                    <h4 style={{ fontSize: 14, marginBottom: 12 }}>{t('dashboard.releases.addTrack')}</h4>
-                    <div className="field">
-                      <label>{t('common.title')}</label>
-                      <input disabled={atLimit} value={newTrackTitle} onChange={(e) => setNewTrackTitle(e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>{t('dashboard.releases.trackArtist')}</label>
-                      <select
-                        style={controlStyle}
-                        disabled={atLimit}
-                        value={newTrackArtistId || r.artist_id}
-                        onChange={(e) => setNewTrackArtistId(e.target.value)}
-                      >
-                        {artists.map((a) => (
-                          <option key={a.id} value={a.id}>{a.name}</option>
-                        ))}
-                      </select>
-                      <div className="notice" style={{ marginTop: 6 }}>{t('dashboard.releases.trackArtistHint')}</div>
-                    </div>
-                    <div className="field">
-                      <label>{t('dashboard.releases.audioFileLabel')}</label>
-                      <input
-                        type="file"
-                        accept=".mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,audio/*"
-                        disabled={atLimit}
-                        onChange={handleNewTrackFile}
-                      />
-                      <div className="notice" style={{ marginTop: 6 }}>
-                        {t('dashboard.releases.uploadHint', { max: MAX_UPLOAD_MB })}
-                      </div>
-                    </div>
-                    {atLimit && (
-                      <div className="error-msg">
-                        {t('dashboard.releases.atLimit', { type: t(`type.${r.type}`), limit })}
-                      </div>
-                    )}
-                    <Msg msg={trackUploadError} />
-                    <button className="btn" type="submit" disabled={atLimit || uploadingTrack}>
-                      {uploadingTrack ? t('dashboard.releases.uploading') : t('dashboard.releases.addTrack')}
-                    </button>
-                  </form>
+                  <Msg msg={trackUploadError} />
+                  <BulkTrackUpload
+                    key={r.id}
+                    release={r}
+                    typeLabel={t(`type.${r.type}`)}
+                    artists={artists}
+                    existingCount={releaseTracks.length}
+                    limit={limit}
+                    maxMb={MAX_UPLOAD_MB}
+                    uploadOne={(item) => uploadOneTrack(r, item)}
+                    onFinished={() => loadAll(session.user.id)}
+                  />
                 </div>
               )}
             </div>
