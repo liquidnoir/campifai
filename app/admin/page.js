@@ -529,6 +529,9 @@ export default function AdminPage() {
         <Link href="/admin/releases" className="btn ghost">
           {t('admin.releasesLink')}
         </Link>
+        <Link href="/admin/statistik" className="btn ghost">
+          {t('admin.statsLink')}
+        </Link>
       </div>
 
       <div className="field" style={{ maxWidth: 420 }}>
