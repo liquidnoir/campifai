@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase'
 import { imagePublicUrl } from '../../../lib/shared'
 import { hasReleaseAccess } from '../../../lib/purchases'
 import { downloadReleaseZip } from '../../../lib/zipDownload'
+import { logDownload } from '../../../lib/logDownload'
 import { useLanguage } from '../../../components/LanguageProvider'
 import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
@@ -116,6 +117,7 @@ function ReleaseContent() {
         t,
         downloadFormat
       )
+      logDownload(supabase, { scope: 'release', releaseId: release.id, format: downloadFormat, trackCount: playable.length })
       setDownload({ busy: false, progress: null, stage: null, error: null })
     } catch (err) {
       setDownload({ busy: false, progress: null, stage: null, error: err.message || t('release.downloadFailed') })

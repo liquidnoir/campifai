@@ -7,6 +7,7 @@ import { imagePublicUrl } from '../../../lib/shared'
 import { collectionTitle } from '../../../lib/collections'
 import { hasReleaseAccess, hasCollectionAccess } from '../../../lib/purchases'
 import { downloadCollectionZip } from '../../../lib/zipDownload'
+import { logDownload } from '../../../lib/logDownload'
 import { useLanguage } from '../../../components/LanguageProvider'
 import PurchaseGate from '../../../components/PurchaseGate'
 import PaymentReturn from '../../../components/PaymentReturn'
@@ -152,6 +153,7 @@ export default function CollectionPage() {
         t,
         downloadFormat
       )
+      logDownload(supabase, { scope: 'collection', collectionId: collection.id, format: downloadFormat, trackCount: withUrls.length })
       setCollectionDownload({ busy: false, progress: null, stage: null, error: null })
     } catch (err) {
       setCollectionDownload({ busy: false, progress: null, stage: null, error: err.message || t('release.downloadFailed') })
