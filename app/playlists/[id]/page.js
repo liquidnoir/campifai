@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { imagePublicUrl } from '../../../lib/shared'
 import QueuePlayer from '../../../components/QueuePlayer'
 import { useLanguage } from '../../../components/LanguageProvider'
 
@@ -45,7 +46,7 @@ export default function PlaylistPage() {
 
     const { data: ptData } = await supabase
       .from('playlist_tracks')
-      .select('id, added_at, tracks ( id, title, audio_path, release_id, artists ( name ), releases ( title, artist_id, artists ( name ) ) )')
+      .select('id, added_at, tracks ( id, title, audio_path, release_id, artists ( name ), releases ( title, artist_id, cover_path, artists ( name ) ) )')
       .eq('playlist_id', id)
       .order('added_at', { ascending: true })
     const list = (ptData || []).filter((row) => row.tracks)
@@ -106,6 +107,7 @@ export default function PlaylistPage() {
       title: r.track.title,
       artistName: r.track.artists?.name || r.track.releases?.artists?.name || t('home.unknownArtist'),
       releaseTitle: r.track.releases?.title,
+      coverUrl: imagePublicUrl(supabase, r.track.releases?.cover_path),
       url: r.track.url,
     }))
 

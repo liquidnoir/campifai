@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { imagePublicUrl } from '../../lib/shared'
 import QueuePlayer from '../../components/QueuePlayer'
 import { buildRadioPools, takeNextBatch } from '../../lib/radioPool'
 import { useLanguage } from '../../components/LanguageProvider'
@@ -62,6 +63,7 @@ function RadioContent() {
         title: tr.title,
         artistName: tr.artists?.name || tr.releases?.artists?.name || t('home.unknownArtist'),
         releaseTitle: tr.releases?.title,
+        coverUrl: imagePublicUrl(supabase, tr.releases?.cover_path),
         url: urlByPath[tr.audio_path],
       }))
   }
@@ -82,7 +84,7 @@ function RadioContent() {
   async function loadChannel() {
     const { data, error: fetchError } = await supabase
       .from('tracks')
-      .select('id, title, audio_path, release_id, artists ( name ), releases!inner ( title, genre, artist_id, artists ( name ) )')
+      .select('id, title, audio_path, release_id, artists ( name ), releases!inner ( title, genre, artist_id, cover_path, artists ( name ) )')
       .limit(CATALOG_LIMIT)
     if (fetchError) {
       setError(fetchError.message)

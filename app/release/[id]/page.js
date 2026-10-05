@@ -235,6 +235,10 @@ function ReleaseContent() {
               title: tr.title,
               url: tr.url,
               artistName: tr.artist_id !== release.artist_id ? tr.artists?.name || '' : '',
+              // Til låseskærm og hovedtelefoner (kunstneren vises altid dér)
+              mediaArtist: tr.artists?.name || release.artists?.name || '',
+              releaseTitle: release.title,
+              coverUrl,
             }))}
             startIndex={startIndex}
             onTrackStart={handleTrackStart}
