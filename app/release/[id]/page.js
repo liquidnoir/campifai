@@ -10,7 +10,7 @@ import { logDownload } from '../../../lib/logDownload'
 import { useLanguage } from '../../../components/LanguageProvider'
 import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
-import QueuePlayer from '../../../components/QueuePlayer'
+import TrackList from '../../../components/TrackList'
 import PurchaseGate from '../../../components/PurchaseGate'
 import PaymentReturn from '../../../components/PaymentReturn'
 import ReportLink from '../../../components/ReportLink'
@@ -93,14 +93,6 @@ function ReleaseContent() {
     const admin = profile?.role === 'admin'
     const access = await hasReleaseAccess(supabase, { userId: session.user.id, isAdmin: admin, release })
     setHasAccess(access)
-  }
-
-  async function handleTrackStart(t) {
-    try {
-      await supabase.rpc('increment_play_count', { track_id: t.id })
-    } catch {
-      // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
-    }
   }
 
   async function handleDownload() {
@@ -229,7 +221,8 @@ function ReleaseContent() {
       <div style={{ marginTop: 8 }}>
         {tracks.length === 0 && <p className="notice">{t('release.noTracksYet')}</p>}
         {tracks.length > 0 && canInteract && (
-          <QueuePlayer
+          <TrackList
+            sourceKey={`release:${release.id}`}
             tracks={tracks.map((tr) => ({
               id: tr.id,
               title: tr.title,
@@ -238,10 +231,11 @@ function ReleaseContent() {
               // Til låseskærm og hovedtelefoner (kunstneren vises altid dér)
               mediaArtist: tr.artists?.name || release.artists?.name || '',
               releaseTitle: release.title,
+              releaseId: release.id,
+              audioPath: tr.audio_path,
               coverUrl,
             }))}
             startIndex={startIndex}
-            onTrackStart={handleTrackStart}
             renderActions={(track) => (
               <>
                 <AddToPlaylistButton trackId={track.id} />

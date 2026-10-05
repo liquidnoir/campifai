@@ -4,6 +4,8 @@ import Nav from '../components/Nav'
 import AuthGate from '../components/AuthGate'
 import Footer from '../components/Footer'
 import TabBar from '../components/TabBar'
+import MiniPlayer from '../components/MiniPlayer'
+import { PlayerProvider } from '../components/PlayerProvider'
 import { STANDALONE_SCRIPT } from '../lib/tabs'
 import { LanguageProvider } from '../components/LanguageProvider'
 
@@ -44,12 +46,16 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <LanguageProvider>
-          <Nav />
-          <main className="wrap">
-            <AuthGate>{children}</AuthGate>
-          </main>
-          <Footer />
-          <TabBar />
+          {/* Afspilleren ligger her, uden for siderne, så musikken fortsætter, når man skifter side */}
+          <PlayerProvider>
+            <Nav />
+            <main className="wrap">
+              <AuthGate>{children}</AuthGate>
+            </main>
+            <Footer />
+            <MiniPlayer />
+            <TabBar />
+          </PlayerProvider>
         </LanguageProvider>
       </body>
     </html>

@@ -3,7 +3,8 @@ import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { imagePublicUrl } from '../../lib/shared'
-import QueuePlayer from '../../components/QueuePlayer'
+import TrackList from '../../components/TrackList'
+import { usePlayer } from '../../components/PlayerProvider'
 import { buildRadioPools, takeNextBatch } from '../../lib/radioPool'
 import { useLanguage } from '../../components/LanguageProvider'
 
@@ -17,9 +18,13 @@ const CATALOG_LIMIT = 1000
 function RadioContent() {
   const { t } = useLanguage()
   const router = useRouter()
+  const player = usePlayer()
   const searchParams = useSearchParams()
   const genre = searchParams.get('genre') || ''
   const fromTrackId = searchParams.get('from') || ''
+  // Spiller netop denne radio allerede (man kom tilbage til siden), lades den være i fred
+  const sourceKey = `radio:${genre}:${fromTrackId}`
+  const alreadyPlaying = player.sourceKey === sourceKey && player.queue.length > 0
   const [session, setSession] = useState(undefined)
   const [tracks, setTracks] = useState(null) // null = ikke hentet endnu
   const [error, setError] = useState('')
@@ -43,6 +48,10 @@ function RadioContent() {
       setTracks([])
       return
     }
+    if (alreadyPlaying) {
+      setTracks(player.queue)
+      return
+    }
     loadChannel()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, genre])
@@ -63,6 +72,8 @@ function RadioContent() {
         title: tr.title,
         artistName: tr.artists?.name || tr.releases?.artists?.name || t('home.unknownArtist'),
         releaseTitle: tr.releases?.title,
+        releaseId: tr.release_id,
+        audioPath: tr.audio_path,
         coverUrl: imagePublicUrl(supabase, tr.releases?.cover_path),
         url: urlByPath[tr.audio_path],
       }))
@@ -96,14 +107,6 @@ function RadioContent() {
     setTracks(await takeBatch())
   }
 
-  async function handleTrackStart(tr) {
-    try {
-      await supabase.rpc('increment_play_count', { track_id: tr.id })
-    } catch {
-      // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
-    }
-  }
-
   if (session === undefined || tracks === null) return <p className="notice">{t('common.loading')}</p>
 
   return (
@@ -114,12 +117,12 @@ function RadioContent() {
       {switched && (
         <p className="notice" style={{ marginBottom: 12 }}>{t('radio.switchedToOthers', { genre })}</p>
       )}
-      <QueuePlayer
+      <TrackList
+        sourceKey={sourceKey}
         tracks={tracks}
         autoStart
         loop
         onNeedMore={takeBatch}
-        onTrackStart={handleTrackStart}
         emptyMessage={t('radio.noTracksInGenre')}
       />
     </section>

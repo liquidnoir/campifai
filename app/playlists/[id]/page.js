@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { imagePublicUrl } from '../../../lib/shared'
-import QueuePlayer from '../../../components/QueuePlayer'
+import TrackList from '../../../components/TrackList'
+import { queueSignature } from '../../../lib/playerQueue'
 import { useLanguage } from '../../../components/LanguageProvider'
 
 // Hvor længe et afspilningslink er gyldigt (6 timer)
@@ -89,14 +90,6 @@ export default function PlaylistPage() {
     router.push('/playlists')
   }
 
-  async function handleTrackStart(tr) {
-    try {
-      await supabase.rpc('increment_play_count', { track_id: tr.id })
-    } catch {
-      // Tæller-opdateringen fejlede stille — påvirker ikke afspilningen
-    }
-  }
-
   if (session === undefined || loading) return <p className="notice">{t('common.loading')}</p>
   if (!playlist) return <p className="notice">{t('playlists.notFound')}</p>
 
@@ -107,6 +100,8 @@ export default function PlaylistPage() {
       title: r.track.title,
       artistName: r.track.artists?.name || r.track.releases?.artists?.name || t('home.unknownArtist'),
       releaseTitle: r.track.releases?.title,
+      releaseId: r.track.release_id,
+      audioPath: r.track.audio_path,
       coverUrl: imagePublicUrl(supabase, r.track.releases?.cover_path),
       url: r.track.url,
     }))
@@ -132,9 +127,10 @@ export default function PlaylistPage() {
       )}
 
       <div style={{ marginTop: 20 }}>
-        <QueuePlayer
+        <TrackList
+          // Ændres playlisten (nummer tilføjet eller fjernet), er det en ny kilde og ikke den, der spiller
+          sourceKey={`playlist:${id}:${queueSignature(playerTracks)}`}
           tracks={playerTracks}
-          onTrackStart={handleTrackStart}
           emptyMessage={t('playlists.noPlayableTracks')}
         />
       </div>
