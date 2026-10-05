@@ -77,3 +77,7 @@ section { padding: 36px 0; }
   .receipt, .receipt * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
   .receipt { border: none !important; padding: 0 !important; }
 }
+
+/* Senest afspillet: en række af udgivelser, man kan trække i sidelæns */
+.recent-row { display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.recent-item { flex: 0 0 150px; scroll-snap-align: start; }

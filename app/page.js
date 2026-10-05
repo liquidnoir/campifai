@@ -6,6 +6,7 @@ import { controlStyle, imagePublicUrl } from '../lib/shared'
 import { collectionTitle } from '../lib/collections'
 import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from '../components/LanguageProvider'
+import RecentlyPlayed from '../components/RecentlyPlayed'
 
 function CoverTile({ imageUrl, color, label }) {
   if (imageUrl) {
@@ -193,6 +194,8 @@ export default function Home() {
           />
         </div>
       </section>
+
+      {!searching && session && <RecentlyPlayed userId={session.user.id} />}
 
       {searching ? (
         <section>
