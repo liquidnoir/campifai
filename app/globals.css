@@ -72,7 +72,7 @@ section { padding: 36px 0; }
 
 /* Udskrift (fx kvittering): kun selve indholdet, uden navigation og bund, og uden mørk baggrund */
 @media print {
-  header.top, .site-footer, .no-print { display: none !important; }
+  header.top, .site-footer, .tabbar, .no-print { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
   .receipt, .receipt * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
   .receipt { border: none !important; padding: 0 !important; }
@@ -81,3 +81,56 @@ section { padding: 36px 0; }
 /* Senest afspillet: en række af udgivelser, man kan trække i sidelæns */
 .recent-row { display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
 .recent-item { flex: 0 0 150px; scroll-snap-align: start; }
+
+/* ===== Hele skærmen: hold indholdet fri af statuslinje, hjemmeindikator og afrundede hjørner ===== */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --tabbar-h: 56px;
+}
+.top { padding-top: var(--safe-top); }
+.top-inner { padding-left: max(20px, var(--safe-left)); padding-right: max(20px, var(--safe-right)); }
+.wrap { padding-left: max(20px, var(--safe-left)); padding-right: max(20px, var(--safe-right)); }
+
+/* ===== Bundmenu i hjemmeskærms-appen (klassen "standalone" sættes på <html> af et script) ===== */
+.tabbar { display: none; }
+@media (max-width: 899px) {
+  .standalone .tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  }
+  .standalone .tab {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--tabbar-h);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 2px;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .standalone .tab svg { width: 24px; height: 24px; }
+  .standalone .tab.active { color: var(--accent); }
+  .standalone .tab.active span { font-weight: 500; }
+  /* Plads til menuen nederst på siden, så intet bliver gemt bag den */
+  .standalone body { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom)); }
+  /* Øverste menu: skjul det, bundmenuen allerede dækker */
+  .standalone .hide-in-app { display: none !important; }
+}

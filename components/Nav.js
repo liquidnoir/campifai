@@ -43,18 +43,18 @@ export default function Nav() {
       <div className="top-inner">
         <Link href="/" className="logo">We Built Other</Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <Link href="/">{t('nav.browse')}</Link>
+          <Link href="/" className="hide-in-app">{t('nav.browse')}</Link>
           {session ? (
             <>
-              <Link href="/playlists">{t('nav.playlists')}</Link>
+              <Link href="/playlists" className="hide-in-app">{t('nav.playlists')}</Link>
               {canPublish(role) && <Link href="/dashboard">{t('nav.releases')}</Link>}
               {role === 'admin' && <Link href="/admin">{t('nav.admin')}</Link>}
-              <Link href="/account">{t('nav.account')}</Link>
+              <Link href="/account" className="hide-in-app">{t('nav.account')}</Link>
               <button onClick={logOut} className="link-btn">{t('nav.logout')}</button>
             </>
           ) : (
             <>
-              <Link href="/login">{t('nav.login')}</Link>
+              <Link href="/login" className="hide-in-app">{t('nav.login')}</Link>
               <Link href="/signup">{t('nav.signup')}</Link>
             </>
           )}

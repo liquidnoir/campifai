@@ -3,6 +3,8 @@ import { Fraunces, Space_Grotesk } from 'next/font/google'
 import Nav from '../components/Nav'
 import AuthGate from '../components/AuthGate'
 import Footer from '../components/Footer'
+import TabBar from '../components/TabBar'
+import { STANDALONE_SCRIPT } from '../lib/tabs'
 import { LanguageProvider } from '../components/LanguageProvider'
 
 // Skrifttyperne hentes, når siden bygges, og leveres derefter fra vores egen server —
@@ -27,13 +29,18 @@ export const metadata = {
 
 export const viewport = {
   themeColor: '#161310',
+  // Siden bruger hele skærmen (også under statuslinjen og hjemmeindikatoren). Stilarket holder
+  // indholdet fri af dem med env(safe-area-inset-*). Uden dette er alle de værdier 0.
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" className={`${fraunces.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* Sætter klassen "standalone" på <html>, når siden kører som installeret app */}
+        <script dangerouslySetInnerHTML={{ __html: STANDALONE_SCRIPT }} />
       </head>
       <body>
         <LanguageProvider>
@@ -42,6 +49,7 @@ export default function RootLayout({ children }) {
             <AuthGate>{children}</AuthGate>
           </main>
           <Footer />
+          <TabBar />
         </LanguageProvider>
       </body>
     </html>
