@@ -69,3 +69,11 @@ section { padding: 36px 0; }
 .site-footer a { color: inherit; }
 .site-footer a:hover { color: var(--ink); }
 .site-footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 8px; }
+
+/* Udskrift (fx kvittering): kun selve indholdet, uden navigation og bund, og uden mørk baggrund */
+@media print {
+  header.top, .site-footer, .no-print { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .receipt, .receipt * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
+  .receipt { border: none !important; padding: 0 !important; }
+}

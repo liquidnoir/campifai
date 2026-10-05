@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { MAX_ARTISTS, controlStyle, removeFolderFiles, removeFolderImages } from '../../lib/shared'
@@ -148,6 +149,9 @@ export default function Account() {
       <h2>{t('nav.account')}</h2>
       <p className="notice" style={{ marginTop: 8 }}>
         {session.user.email} · {roleLabel}
+      </p>
+      <p style={{ marginTop: 14 }}>
+        <Link href="/account/purchases" className="btn ghost">{t('purchases.mine')}</Link>
       </p>
       {isPublisher && (
         <p className="notice" style={{ marginTop: 4 }}>
