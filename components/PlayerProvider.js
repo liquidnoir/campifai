@@ -40,6 +40,9 @@ function emptyPrefetch() {
 //   mediaArtist (kunstnerens fulde navn), releaseTitle og coverUrl vises på låseskærm og hovedtelefoner.
 //   audioPath bruges til at forny et afspilningslink, der er udløbet.
 //
+// playNext(track) / addToQueue(track): læg et nummer i køen (lige efter det, der spiller / bagerst)
+//   uden at afbryde afspilningen. Numrene mærkes med queued: 'next' | 'end'.
+//
 // playQueue(tracks, startIndex, { sourceKey, loop, onNeedMore })
 //   sourceKey: navnet på kilden (fx "release:abc"), så en side kan se, om dens liste er den, der spiller
 //   loop: når køen er løbet tør (og onNeedMore ikke har mere), bland forfra og fortsæt (radio)
@@ -57,6 +60,8 @@ export function PlayerProvider({ children }) {
   const [loop, setLoop] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [time, setTime] = useState({ currentTime: 0, duration: 0 })
+  // Kort bekræftelse, når et nummer er lagt i køen: { id, kind: 'next' | 'end', title }
+  const [notice, setNotice] = useState(null)
 
   const audioRef = useRef(null)
   const queueRef = useRef(queue)
@@ -72,6 +77,7 @@ export function PlayerProvider({ children }) {
   const lastTimeTickRef = useRef(-1)
   const retriedRef = useRef('')
   const playKeyRef = useRef(playKey)
+  const noticeTimerRef = useRef(null)
   queueRef.current = queue
   playKeyRef.current = playKey
   indexRef.current = index
@@ -122,7 +128,8 @@ export function PlayerProvider({ children }) {
         return
       }
       if (loopRef.current) {
-        setQueue((prev) => shuffle(prev))
+        // Blandes forfra, er numre, der blev lagt i køen, bare almindelige numre igen
+        setQueue((prev) => shuffle(prev).map(({ queued, ...rest }) => rest))
         goTo(0)
       }
     }
@@ -151,6 +158,40 @@ export function PlayerProvider({ children }) {
       if (i < 0 || i >= queueRef.current.length) return
       goTo(i)
     }
+
+    // Viser en kort bekræftelse, og fjerner den igen efter et øjeblik
+    const showNotice = (kind, title) => {
+      clearTimeout(noticeTimerRef.current)
+      setNotice({ id: Date.now() + Math.random(), kind, title })
+      noticeTimerRef.current = setTimeout(() => setNotice(null), 2600)
+    }
+
+    // Lægger et nummer i køen uden at afbryde det, der spiller.
+    //   'next': lige efter det nummer, der spiller (flere "næste" spilles i den rækkefølge, de blev lagt)
+    //   'end':  bagerst i køen
+    // Er køen tom, starter nummeret i stedet. Returnerer false, hvis nummeret ikke kan afspilles.
+    const enqueue = (track, where) => {
+      if (!track || !track.url) return false
+      if (queueRef.current.length === 0) {
+        playQueue([track], 0, { sourceKey: '' })
+        return true
+      }
+      const item = { ...track, queued: where }
+      if (where === 'next') {
+        setQueue((prev) => {
+          let pos = Math.min(indexRef.current + 1, prev.length)
+          while (prev[pos]?.queued === 'next') pos++
+          return [...prev.slice(0, pos), item, ...prev.slice(pos)]
+        })
+      } else {
+        setQueue((prev) => [...prev, item])
+      }
+      showNotice(where, track.title)
+      return true
+    }
+
+    const playNext = (track) => enqueue(track, 'next')
+    const addToQueue = (track) => enqueue(track, 'end')
 
     const play = () => {
       audioRef.current?.play()?.catch?.(() => {})
@@ -192,9 +233,11 @@ export function PlayerProvider({ children }) {
       setPlaying(false)
       setNeedsTap(false)
       setTime({ currentTime: 0, duration: 0 })
+      clearTimeout(noticeTimerRef.current)
+      setNotice(null)
     }
 
-    apiRef.current = { playQueue, playIndex, play, pause, togglePlay, next, previous, seek, stop, requestMore, goTo }
+    apiRef.current = { playQueue, playIndex, playNext, addToQueue, play, pause, togglePlay, next, previous, seek, stop, requestMore, goTo }
   }
   const api = apiRef.current
 
@@ -453,6 +496,7 @@ export function PlayerProvider({ children }) {
   // Frigiv alt, når appen lukkes ned
   useEffect(() => {
     return () => {
+      clearTimeout(noticeTimerRef.current)
       releasePrefetch()
       if (playingBlobRef.current) URL.revokeObjectURL(playingBlobRef.current)
     }
@@ -460,9 +504,9 @@ export function PlayerProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ queue, index, current, playing, needsTap, sourceKey, hasNext, hasPrevious, loop, ...api }),
+    () => ({ queue, index, current, playing, needsTap, sourceKey, hasNext, hasPrevious, loop, notice, ...api }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queue, index, playing, needsTap, sourceKey, hasNext, hasPrevious, loop]
+    [queue, index, playing, needsTap, sourceKey, hasNext, hasPrevious, loop, notice]
   )
 
   return (

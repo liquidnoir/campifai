@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { imagePublicUrl } from '../../../lib/shared'
 import TrackList from '../../../components/TrackList'
+import QueueMenu from '../../../components/QueueMenu'
 import { queueSignature } from '../../../lib/playerQueue'
 import { useLanguage } from '../../../components/LanguageProvider'
 
@@ -132,6 +133,7 @@ export default function PlaylistPage() {
           sourceKey={`playlist:${id}:${queueSignature(playerTracks)}`}
           tracks={playerTracks}
           emptyMessage={t('playlists.noPlayableTracks')}
+          renderActions={(track) => <QueueMenu track={track} />}
         />
       </div>
 

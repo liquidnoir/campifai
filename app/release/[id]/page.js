@@ -11,6 +11,7 @@ import { useLanguage } from '../../../components/LanguageProvider'
 import ShareButton from '../../../components/ShareButton'
 import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 import TrackList from '../../../components/TrackList'
+import QueueMenu from '../../../components/QueueMenu'
 import PurchaseGate from '../../../components/PurchaseGate'
 import PaymentReturn from '../../../components/PaymentReturn'
 import ReportLink from '../../../components/ReportLink'
@@ -238,6 +239,7 @@ function ReleaseContent() {
             startIndex={startIndex}
             renderActions={(track) => (
               <>
+                <QueueMenu track={track} />
                 <AddToPlaylistButton trackId={track.id} />
                 {release.genre && (
                   <Link href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${track.id}`} className="btn ghost">

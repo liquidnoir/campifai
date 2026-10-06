@@ -109,6 +109,18 @@ function SeekBar() {
   )
 }
 
+// Kort bekræftelse over minispilleren, når et nummer er lagt i køen
+function QueueToast() {
+  const { t } = useLanguage()
+  const { notice } = usePlayer()
+  if (!notice) return null
+  return (
+    <div className="queue-toast" role="status" aria-live="polite">
+      {t(notice.kind === 'next' ? 'queue.toast.next' : 'queue.toast.added', { title: notice.title })}
+    </div>
+  )
+}
+
 // Minispilleren: vises nederst, så længe der er noget i afspillerens kø. Musikken fortsætter
 // ved sideskift, og herfra kan man sætte på pause, gå til forrige/næste, søge og lukke.
 export default function MiniPlayer() {
@@ -133,6 +145,8 @@ export default function MiniPlayer() {
   )
 
   return (
+    <>
+    <QueueToast />
     <div className="miniplayer" role="region" aria-label={t('player.mini.aria')}>
       <SeekBar />
       <div className="mini-row">
@@ -166,5 +180,6 @@ export default function MiniPlayer() {
         </div>
       </div>
     </div>
+    </>
   )
 }

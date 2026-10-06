@@ -30,7 +30,11 @@ export default function TrackList({
 
   // Er det netop denne liste, der spiller?
   const active = Boolean(sourceKey) && player.sourceKey === sourceKey && player.queue.length > 0
-  const rows = active ? player.queue : tracks
+  // Spiller listen, vises afspillerens kø — men uden de numre, brugeren selv har lagt i køen
+  // (de hører til andre lister). Hver række husker sin plads i køen.
+  const entries = active
+    ? player.queue.map((track, queueIndex) => ({ track, queueIndex })).filter((entry) => !entry.track.queued)
+    : tracks.map((track, queueIndex) => ({ track, queueIndex }))
   const options = { sourceKey, loop, onNeedMore }
 
   // Radio: start af sig selv, én gang pr. kilde — og lad en liste, der allerede spiller, være i fred
@@ -48,12 +52,13 @@ export default function TrackList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function handleRow(i) {
-    if (active) player.playIndex(i)
-    else player.playQueue(tracks, i, options)
+  // queueIndex er rækkens plads i køen (spiller listen) eller i listen selv (spiller den ikke)
+  function handleRow(queueIndex) {
+    if (active) player.playIndex(queueIndex)
+    else player.playQueue(tracks, queueIndex, options)
   }
 
-  if (rows.length === 0) return <p className="notice">{emptyMessage || t('player.empty')}</p>
+  if (entries.length === 0) return <p className="notice">{emptyMessage || t('player.empty')}</p>
 
   return (
     <div>
@@ -68,27 +73,28 @@ export default function TrackList({
         </button>
       )}
       <div>
-        {rows.map((row, i) => {
-          const isCurrent = active && i === player.index
+        {entries.map(({ track: row, queueIndex }) => {
+          // Spiller listen: det nummer, køen er nået til. Ellers: nummeret, hvis det spiller (fra en anden kilde)
+          const isCurrent = active ? queueIndex === player.index : Boolean(player.current) && player.current.id === row.id
           return (
             <div
-              key={`${row.id}-${i}`}
-              className="track-row"
+              key={`${row.id}-${queueIndex}`}
+              className="track-row tl-row"
               style={{
                 cursor: 'pointer',
                 background: isCurrent ? 'var(--surface)' : undefined,
                 borderRadius: 4,
               }}
               aria-current={isCurrent ? 'true' : undefined}
-              onClick={() => handleRow(i)}
-              ref={i === startIndex ? startRowRef : null}
+              onClick={() => handleRow(queueIndex)}
+              ref={queueIndex === startIndex ? startRowRef : null}
             >
               <div className="ttitle" style={isCurrent ? { color: 'var(--accent)' } : undefined}>
                 {row.title}
                 {row.artistName && <div className="notice">{row.artistName}</div>}
               </div>
               {renderActions && (
-                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 8 }}>
+                <div className="tl-actions" onClick={(e) => e.stopPropagation()}>
                   {renderActions(row)}
                 </div>
               )}

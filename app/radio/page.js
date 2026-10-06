@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { imagePublicUrl } from '../../lib/shared'
 import TrackList from '../../components/TrackList'
+import QueueMenu from '../../components/QueueMenu'
 import { usePlayer } from '../../components/PlayerProvider'
 import { buildRadioPools, takeNextBatch } from '../../lib/radioPool'
 import { useLanguage } from '../../components/LanguageProvider'
@@ -124,6 +125,7 @@ function RadioContent() {
         loop
         onNeedMore={takeBatch}
         emptyMessage={t('radio.noTracksInGenre')}
+        renderActions={(track) => <QueueMenu track={track} />}
       />
     </section>
   )

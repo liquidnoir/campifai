@@ -72,7 +72,7 @@ section { padding: 36px 0; }
 
 /* Udskrift (fx kvittering): kun selve indholdet, uden navigation og bund, og uden mørk baggrund */
 @media print {
-  header.top, .site-footer, .tabbar, .miniplayer, .no-print { display: none !important; }
+  header.top, .site-footer, .tabbar, .miniplayer, .queue-toast, .no-print { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
   .receipt, .receipt * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
   .receipt { border: none !important; padding: 0 !important; }
@@ -136,12 +136,12 @@ section { padding: 36px 0; }
 }
 
 /* ===== Minispiller: nederst, så længe der er noget i afspillerens kø ===== */
-:root { --mini-h: 72px; }
+:root { --mini-h: 72px; --mini-bottom: calc(8px + var(--safe-bottom)); }
 .miniplayer {
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: calc(8px + var(--safe-bottom));
+  bottom: var(--mini-bottom);
   margin: 0 auto;
   max-width: 640px;
   z-index: 19;
@@ -170,6 +170,35 @@ section { padding: 36px 0; }
 .has-player body { padding-bottom: calc(var(--mini-h) + 24px); }
 @media (max-width: 899px) {
   /* I appen sidder minispilleren lige over bundmenuen */
-  .standalone .miniplayer { bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
+  .standalone { --mini-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); }
   .standalone.has-player body { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--mini-h) + 24px); }
 }
+
+/* ===== Kø: knap og menu i nummerrækkerne, og bekræftelsen over minispilleren ===== */
+.qm-btn { display: inline-flex; align-items: center; justify-content: center; padding: 9px 11px; }
+.qm-btn svg { width: 18px; height: 18px; }
+.qm-menu { position: absolute; z-index: 21; padding: 6px; width: 190px; }
+.qm-item { display: block; width: 100%; padding: 11px 12px; text-align: left; white-space: nowrap; font: inherit; font-size: 14px; color: var(--ink); background: none; border: none; border-radius: 3px; cursor: pointer; }
+.qm-item:hover, .qm-item:focus-visible { background: var(--bg); }
+.queue-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--mini-bottom) + var(--mini-h) + 10px);
+  z-index: 19;
+  max-width: calc(100vw - 32px);
+  padding: 9px 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--bg);
+  background: var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Nummerrækker med knapper: på en smal skærm bryder knapperne om under titlen, så titlen er læsbar */
+.tl-row { flex-wrap: wrap; row-gap: 8px; }
+.tl-row .ttitle { flex: 1 1 160px; min-width: 0; }
+.tl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; justify-content: flex-end; }
