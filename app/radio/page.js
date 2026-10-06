@@ -124,6 +124,7 @@ function RadioContent() {
         autoStart
         loop
         onNeedMore={takeBatch}
+        followQueue
         emptyMessage={t('radio.noTracksInGenre')}
         renderActions={(track) => <QueueMenu track={track} />}
       />

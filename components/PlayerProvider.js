@@ -29,6 +29,13 @@ export function usePlayerTime() {
   return useContext(TimeContext)
 }
 
+// Hvert nummer i køen får et unikt løbenummer (qid), så en række kan genkendes, selv om den flyttes,
+// og det samme nummer kan ligge flere gange i køen.
+let qidCounter = 0
+function withQid(track) {
+  return track.qid ? track : { ...track, qid: ++qidCounter }
+}
+
 function emptyPrefetch() {
   return { url: '', status: 'idle', blobUrl: '', controller: null }
 }
@@ -42,6 +49,7 @@ function emptyPrefetch() {
 //
 // playNext(track) / addToQueue(track): læg et nummer i køen (lige efter det, der spiller / bagerst)
 //   uden at afbryde afspilningen. Numrene mærkes med queued: 'next' | 'end'.
+// removeFromQueue(i) / moveInQueue(fra, til) / clearUpcoming(): ret i det, der kommer (placering i køen).
 //
 // playQueue(tracks, startIndex, { sourceKey, loop, onNeedMore })
 //   sourceKey: navnet på kilden (fx "release:abc"), så en side kan se, om dens liste er den, der spiller
@@ -97,7 +105,7 @@ export function PlayerProvider({ children }) {
             exhaustedRef.current = true
             return 0
           }
-          setQueue((prev) => [...prev, ...more])
+          setQueue((prev) => [...prev, ...more.map(withQid)])
           return more.length
         } catch {
           exhaustedRef.current = true
@@ -149,7 +157,7 @@ export function PlayerProvider({ children }) {
       setHasMore(Boolean(options.onNeedMore))
       setLoop(Boolean(options.loop))
       setSourceKey(options.sourceKey || '')
-      setQueue(list)
+      setQueue(list.map(withQid))
       setIndex(start)
       setPlayKey((k) => k + 1)
     }
@@ -176,7 +184,7 @@ export function PlayerProvider({ children }) {
         playQueue([track], 0, { sourceKey: '' })
         return true
       }
-      const item = { ...track, queued: where }
+      const item = { ...track, qid: ++qidCounter, queued: where }
       if (where === 'next') {
         setQueue((prev) => {
           let pos = Math.min(indexRef.current + 1, prev.length)
@@ -192,6 +200,39 @@ export function PlayerProvider({ children }) {
 
     const playNext = (track) => enqueue(track, 'next')
     const addToQueue = (track) => enqueue(track, 'end')
+
+    // Fjerner et nummer, der ikke har spillet endnu (placering i køen). Det, der spiller, og det, der
+    // er spillet, kan ikke fjernes. Returnerer true, hvis noget blev fjernet.
+    const removeFromQueue = (i) => {
+      const current = indexRef.current
+      if (!Number.isInteger(i) || i <= current || i >= queueRef.current.length) return false
+      setQueue((prev) => prev.filter((_, k) => k !== i))
+      return true
+    }
+
+    // Flytter et nummer, der ikke har spillet endnu, til en anden plads blandt dem, der kommer.
+    // Nummeret, der spiller, afbrydes ikke. Returnerer true, hvis noget blev flyttet.
+    const moveInQueue = (from, to) => {
+      const current = indexRef.current
+      const length = queueRef.current.length
+      if (![from, to].every(Number.isInteger)) return false
+      if (from <= current || to <= current || from >= length || to >= length || from === to) return false
+      setQueue((prev) => {
+        const next = [...prev]
+        const [item] = next.splice(from, 1)
+        next.splice(to, 0, item)
+        return next
+      })
+      return true
+    }
+
+    // Fjerner alle numre, der kommer efter det, der spiller. Det, der spiller, afbrydes ikke
+    // (og en radio henter bare flere, når nummeret er slut).
+    const clearUpcoming = () => {
+      if (queueRef.current.length <= indexRef.current + 1) return false
+      setQueue((prev) => prev.slice(0, indexRef.current + 1))
+      return true
+    }
 
     const play = () => {
       audioRef.current?.play()?.catch?.(() => {})
@@ -237,7 +278,7 @@ export function PlayerProvider({ children }) {
       setNotice(null)
     }
 
-    apiRef.current = { playQueue, playIndex, playNext, addToQueue, play, pause, togglePlay, next, previous, seek, stop, requestMore, goTo }
+    apiRef.current = { playQueue, playIndex, playNext, addToQueue, removeFromQueue, moveInQueue, clearUpcoming, play, pause, togglePlay, next, previous, seek, stop, requestMore, goTo }
   }
   const api = apiRef.current
 
@@ -504,9 +545,9 @@ export function PlayerProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ queue, index, current, playing, needsTap, sourceKey, hasNext, hasPrevious, loop, notice, ...api }),
+    () => ({ queue, index, current, playing, needsTap, sourceKey, hasNext, hasPrevious, hasMore, loop, notice, ...api }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queue, index, playing, needsTap, sourceKey, hasNext, hasPrevious, loop, notice]
+    [queue, index, playing, needsTap, sourceKey, hasNext, hasPrevious, hasMore, loop, notice]
   )
 
   return (

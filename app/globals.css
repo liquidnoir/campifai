@@ -72,7 +72,7 @@ section { padding: 36px 0; }
 
 /* Udskrift (fx kvittering): kun selve indholdet, uden navigation og bund, og uden mørk baggrund */
 @media print {
-  header.top, .site-footer, .tabbar, .miniplayer, .queue-toast, .no-print { display: none !important; }
+  header.top, .site-footer, .tabbar, .miniplayer, .queue-toast, .queue-sheet, .queue-backdrop, .no-print { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
   .receipt, .receipt * { color: #000 !important; background: #fff !important; border-color: #ccc !important; }
   .receipt { border: none !important; padding: 0 !important; }
@@ -162,10 +162,10 @@ section { padding: 36px 0; }
 .mini-title { font-size: 14px; font-weight: 500; }
 .mini-artist { font-size: 12px; color: var(--muted); }
 .mini-controls { display: flex; align-items: center; flex-shrink: 0; }
-.mini-btn { display: flex; align-items: center; justify-content: center; width: 40px; height: 44px; padding: 0; background: none; border: none; color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mini-btn { position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 44px; padding: 0; background: none; border: none; color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .mini-btn svg { width: 22px; height: 22px; }
 .mini-btn.play svg { width: 28px; height: 28px; }
-.mini-btn.close { width: 32px; color: var(--muted); }
+.mini-btn.close { width: 28px; color: var(--muted); }
 .mini-btn.close svg { width: 16px; height: 16px; }
 .has-player body { padding-bottom: calc(var(--mini-h) + 24px); }
 @media (max-width: 899px) {
@@ -211,3 +211,57 @@ section { padding: 36px 0; }
 
 /* Om os: overskriften må være bredere end på forsiden, hvor den stod ved siden af et billede */
 .about h1 { max-width: 20ch; }
+
+/* ===== Kø-visning ===== */
+.mini-btn.queue-toggle.on { color: var(--accent); }
+.mini-badge { position: absolute; top: 3px; right: 0; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; text-align: center; color: var(--bg); background: var(--accent); border-radius: 8px; }
+.queue-backdrop { position: fixed; inset: 0; z-index: 17; background: rgba(0, 0, 0, 0.45); }
+.queue-sheet {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--mini-bottom) + var(--mini-h) + 8px);
+  margin: 0 auto;
+  max-width: 640px;
+  max-height: calc(100vh - var(--mini-bottom) - var(--mini-h) - 8px - var(--safe-top) - 56px);
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  outline: none;
+}
+@supports (height: 100dvh) {
+  .queue-sheet { max-height: calc(100dvh - var(--mini-bottom) - var(--mini-h) - 8px - var(--safe-top) - 56px); }
+}
+.queue-sheet-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; border-bottom: 1px solid var(--border); }
+.queue-sheet-head h3 { font-size: 17px; }
+.queue-clear { padding: 7px 10px; font: inherit; font-size: 13px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; }
+.queue-clear:hover { color: var(--ink); }
+.queue-sheet-body { flex: 1; min-height: 0; padding: 2px 8px 10px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.queue-sec-title { padding: 12px 6px 6px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.queue-item { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
+.queue-item.now { border-bottom: none; }
+.queue-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 6px; text-align: left; font: inherit; color: var(--ink); background: none; border: none; cursor: pointer; }
+.queue-item-main.static { cursor: default; }
+.queue-item.now .queue-item-title { color: var(--accent); }
+.queue-item-title, .queue-item-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-item-title { font-size: 15px; }
+.queue-item-sub { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.queue-badge { flex-shrink: 0; padding: 0 6px; font-size: 10px; line-height: 16px; color: var(--bg); background: var(--muted); border-radius: 8px; }
+.queue-act { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 40px; padding: 0; color: var(--ink); background: none; border: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.queue-act svg { width: 18px; height: 18px; }
+.queue-act:disabled { opacity: 0.25; cursor: default; }
+.queue-empty { padding: 8px 6px 4px; }
+
+/* Smalle telefoner: minispillerens fem knapper får mindre plads, så titlen stadig kan læses */
+@media (max-width: 360px) {
+  .mini-btn { width: 32px; }
+  .mini-btn.play { width: 36px; }
+  .mini-btn.close { width: 24px; }
+  .mini-cover { width: 40px; height: 40px; }
+  .mini-info { gap: 8px; }
+}

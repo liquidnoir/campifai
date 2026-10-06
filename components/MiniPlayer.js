@@ -1,8 +1,10 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useLanguage } from './LanguageProvider'
 import { usePlayer, usePlayerTime } from './PlayerProvider'
+import QueuePanel from './QueuePanel'
 import { formatClock, fractionOf } from '../lib/playerQueue'
 
 const ICONS = {
@@ -29,6 +31,13 @@ const ICONS = {
     <>
       <path d="M6 6l12 12" />
       <path d="M18 6L6 18" />
+    </>
+  ),
+  queue: (
+    <>
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h10" />
     </>
   ),
 }
@@ -126,8 +135,20 @@ function QueueToast() {
 export default function MiniPlayer() {
   const { t } = useLanguage()
   const player = usePlayer()
-  const { current, playing, hasNext, hasPrevious } = player
+  const pathname = usePathname()
+  const { current, playing, hasNext, hasPrevious, queue, index } = player
+  const [queueOpen, setQueueOpen] = useState(false)
+
+  // Køen lukkes, når man skifter side, og når afspilleren lukkes
+  useEffect(() => {
+    setQueueOpen(false)
+  }, [pathname])
+  useEffect(() => {
+    if (!current) setQueueOpen(false)
+  }, [current])
+
   if (!current) return null
+  const upcomingCount = Math.max(0, queue.length - index - 1)
 
   const artist = current.mediaArtist || current.artistName || ''
   const href = current.releaseId ? `/release/${current.releaseId}?t=${current.id}` : null
@@ -147,6 +168,7 @@ export default function MiniPlayer() {
   return (
     <>
     <QueueToast />
+    {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
     <div className="miniplayer" role="region" aria-label={t('player.mini.aria')}>
       <SeekBar />
       <div className="mini-row">
@@ -174,6 +196,16 @@ export default function MiniPlayer() {
               <Icon name="next" />
             </button>
           )}
+          <button
+            type="button"
+            className={`mini-btn queue-toggle${queueOpen ? ' on' : ''}`}
+            aria-label={t('queue.view.open')}
+            aria-expanded={queueOpen}
+            onClick={() => setQueueOpen((open) => !open)}
+          >
+            <Icon name="queue" />
+            {upcomingCount > 0 && <span className="mini-badge">{upcomingCount > 99 ? '99+' : upcomingCount}</span>}
+          </button>
           <button type="button" className="mini-btn close" aria-label={t('player.mini.close')} onClick={player.stop}>
             <Icon name="close" />
           </button>
