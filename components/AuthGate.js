@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   '/privacy',
   '/cookies',
   '/contact',
+  '/about',
   '/forgot-password',
   '/reset-password',
 ]

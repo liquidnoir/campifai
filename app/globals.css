@@ -27,11 +27,11 @@ a { color: inherit; text-decoration: none; }
 .link-btn { background: none; border: none; font-family: inherit; font-size: 14px; color: var(--muted); cursor: pointer; padding: 0; }
 
 .hero { padding: 48px 0 8px; }
-.hero-inner { display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
+.hero-inner { display: flex; align-items: center; justify-content: center; gap: 40px; flex-wrap: wrap; }
 .hero-text { flex: 1 1 320px; min-width: 260px; }
 .hero h1 { font-size: 36px; line-height: 1.15; max-width: 11ch; }
 .hero p { margin: 14px 0 0; color: var(--muted); max-width: 46ch; line-height: 1.6; font-size: 15px; }
-.hero-art { flex: 1 1 320px; min-width: 260px; max-width: 420px; }
+.hero-art { flex: 1 1 320px; min-width: 260px; max-width: 560px; }
 .hero-art svg { width: 100%; height: auto; display: block; }
 .wave-divider { margin: 30px 0 0; opacity: 0.85; }
 .wave-divider svg { width: 100%; height: auto; display: block; }
@@ -202,3 +202,12 @@ section { padding: 36px 0; }
 .tl-row { flex-wrap: wrap; row-gap: 8px; }
 .tl-row .ttitle { flex: 1 1 160px; min-width: 0; }
 .tl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; justify-content: flex-end; }
+
+/* Forsidebilledet: en rolig flade (3:2) mens billedet hentes, så intet spring og intet forkert billede */
+.hero-art-loading { aspect-ratio: 3 / 2; background: var(--surface); border-radius: 3px; }
+.hero-img { display: block; width: 100%; height: auto; border-radius: 3px; opacity: 0; transition: opacity 0.25s ease; }
+.hero-img.loaded { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .hero-img { transition: none; } }
+
+/* Om os: overskriften må være bredere end på forsiden, hvor den stod ved siden af et billede */
+.about h1 { max-width: 20ch; }

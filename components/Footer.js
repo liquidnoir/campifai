@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useLanguage } from './LanguageProvider'
 import { SITE } from '../lib/siteInfo'
 
-// Bund på alle sider: de juridiske sider og kontakt
+// Bund på alle sider: de juridiske sider, kontakt og Om os
 export default function Footer() {
   const { t } = useLanguage()
   return (
@@ -14,6 +14,7 @@ export default function Footer() {
           <Link href="/privacy">{t('footer.privacy')}</Link>
           <Link href="/cookies">{t('footer.cookies')}</Link>
           <Link href="/contact">{t('footer.contact')}</Link>
+          <Link href="/about">{t('footer.about')}</Link>
         </nav>
         <div>{SITE.name}</div>
       </div>

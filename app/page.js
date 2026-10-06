@@ -7,6 +7,7 @@ import { collectionTitle } from '../lib/collections'
 import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from '../components/LanguageProvider'
 import RecentlyPlayed from '../components/RecentlyPlayed'
+import HeroImage from '../components/HeroImage'
 
 function CoverTile({ imageUrl, color, label }) {
   if (imageUrl) {
@@ -138,14 +139,6 @@ export default function Home() {
   const q = query.trim().toLowerCase()
   const searching = q.length > 0
 
-  const heroTitle =
-    (lang === 'da' ? heroSettings?.heroTitleDa : heroSettings?.heroTitleEn)?.trim() || t('home.hero.title')
-  const heroBody =
-    (lang === 'da' ? heroSettings?.heroBodyDa : heroSettings?.heroBodyEn)?.trim() || t('home.hero.body')
-  const heroImageUrl = heroSettings?.heroImagePath
-    ? imagePublicUrl(supabase, heroSettings.heroImagePath)
-    : '/hero-mushrooms.jpg'
-
   const filteredReleases = useMemo(() => {
     if (!searching) return []
     return releases.filter((r) => {
@@ -168,17 +161,8 @@ export default function Home() {
     <div>
       <section className="hero">
         <div className="hero-inner">
-          <div className="hero-text">
-            <h1>{heroTitle}</h1>
-            <p style={{ whiteSpace: 'pre-line' }}>{heroBody}</p>
-          </div>
-          <div className="hero-art">
-            <img
-              src={heroImageUrl}
-              alt=""
-              style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 3 }}
-            />
-          </div>
+          {/* Overskriften og teksten ligger nu på siden Om os (bunden af siden) */}
+          <HeroImage settings={heroSettings} />
         </div>
       </section>
 

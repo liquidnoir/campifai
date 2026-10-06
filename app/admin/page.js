@@ -437,7 +437,8 @@ export default function AdminPage() {
 
       {settings && (
         <div className="panel" style={{ maxWidth: 480, marginBottom: 8 }}>
-          <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t('admin.hero.title')}</h3>
+          <h3 style={{ fontSize: 16, marginBottom: 8 }}>{t('admin.hero.title')}</h3>
+          <p className="notice" style={{ marginBottom: 14 }}>{t('admin.hero.hint')}</p>
 
           <div className="field">
             <label>{t('admin.hero.imageLabel')}</label>
