@@ -7,11 +7,13 @@ import { useLanguage } from '../../components/LanguageProvider'
 import { useConfirm } from '../../components/ConfirmProvider'
 import EmptyState from '../../components/EmptyState'
 import { ListSkeleton } from '../../components/Skeletons'
+import { useFavorites } from '../../components/FavoritesProvider'
 
 export default function PlaylistsPage() {
   const { t } = useLanguage()
   const confirm = useConfirm()
   const router = useRouter()
+  const favorites = useFavorites()
   const [session, setSession] = useState(undefined)
   const [playlists, setPlaylists] = useState([])
   const [loading, setLoading] = useState(true)
@@ -72,6 +74,16 @@ export default function PlaylistsPage() {
   return (
     <section>
       <h2>{t('playlists.title')}</h2>
+
+      <Link href="/favorites" className="fav-card panel">
+        <span className="fav-card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-7.5-4.6-9.2-9.4C1.7 7.8 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.3 3.3 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4z" /></svg>
+        </span>
+        <span>
+          <span className="fav-card-title">{t('favorites.title')}</span>
+          {favorites.ready && <span className="notice fav-card-sub">{t('release.trackCount', { count: favorites.count })}</span>}
+        </span>
+      </Link>
 
       <div className="panel" style={{ maxWidth: 480, marginTop: 20, marginBottom: 28 }}>
         <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t('playlists.createTitle')}</h3>

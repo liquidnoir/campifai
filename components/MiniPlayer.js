@@ -1,54 +1,12 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from './LanguageProvider'
 import { usePlayer, usePlayerTime } from './PlayerProvider'
 import QueuePanel from './QueuePanel'
+import NowPlaying from './NowPlaying'
+import { Icon } from './PlayerIcons'
 import { formatClock, fractionOf } from '../lib/playerQueue'
-
-const ICONS = {
-  previous: (
-    <>
-      <path d="M6 5v14" />
-      <path d="M19 5v14L9 12z" fill="currentColor" />
-    </>
-  ),
-  next: (
-    <>
-      <path d="M18 5v14" />
-      <path d="M5 5v14l10-7z" fill="currentColor" />
-    </>
-  ),
-  play: <path d="M7 4.5v15l13-7.5z" fill="currentColor" stroke="none" />,
-  pause: (
-    <>
-      <rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none" />
-      <rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none" />
-    </>
-  ),
-  close: (
-    <>
-      <path d="M6 6l12 12" />
-      <path d="M18 6L6 18" />
-    </>
-  ),
-  queue: (
-    <>
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h10" />
-    </>
-  ),
-}
-
-function Icon({ name }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {ICONS[name]}
-    </svg>
-  )
-}
 
 // Linjen øverst i minispilleren: viser, hvor langt nummeret er, og kan trykkes eller trækkes i
 function SeekBar() {
@@ -138,20 +96,24 @@ export default function MiniPlayer() {
   const pathname = usePathname()
   const { current, playing, hasNext, hasPrevious, queue, index } = player
   const [queueOpen, setQueueOpen] = useState(false)
+  const [fullOpen, setFullOpen] = useState(false)
 
   // Køen lukkes, når man skifter side, og når afspilleren lukkes
   useEffect(() => {
     setQueueOpen(false)
+    setFullOpen(false)
   }, [pathname])
   useEffect(() => {
-    if (!current) setQueueOpen(false)
+    if (!current) {
+      setQueueOpen(false)
+      setFullOpen(false)
+    }
   }, [current])
 
   if (!current) return null
   const upcomingCount = Math.max(0, queue.length - index - 1)
 
   const artist = current.mediaArtist || current.artistName || ''
-  const href = current.releaseId ? `/release/${current.releaseId}?t=${current.id}` : null
   const info = (
     <>
       <div
@@ -169,14 +131,21 @@ export default function MiniPlayer() {
     <>
     <QueueToast />
     {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+    {fullOpen && (
+      <NowPlaying
+        onClose={() => setFullOpen(false)}
+        onShowQueue={() => {
+          setFullOpen(false)
+          setQueueOpen(true)
+        }}
+      />
+    )}
     <div className="miniplayer" role="region" aria-label={t('player.mini.aria')}>
       <SeekBar />
       <div className="mini-row">
-        {href ? (
-          <Link href={href} className="mini-info">{info}</Link>
-        ) : (
-          <div className="mini-info">{info}</div>
-        )}
+        <button type="button" className="mini-info" aria-label={t('nowPlaying.open')} onClick={() => setFullOpen(true)}>
+          {info}
+        </button>
         <div className="mini-controls">
           {hasPrevious && (
             <button type="button" className="mini-btn" aria-label={t('player.mini.previous')} onClick={player.previous}>

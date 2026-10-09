@@ -9,6 +9,7 @@ import { PlayerProvider } from '../components/PlayerProvider'
 import { STANDALONE_SCRIPT } from '../lib/tabs'
 import { LanguageProvider } from '../components/LanguageProvider'
 import { ConfirmProvider } from '../components/ConfirmProvider'
+import { FavoritesProvider } from '../components/FavoritesProvider'
 import SkipLink from '../components/SkipLink'
 
 // Skrifttyperne hentes, når siden bygges, og leveres derefter fra vores egen server —
@@ -50,6 +51,7 @@ export default function RootLayout({ children }) {
         <LanguageProvider>
           <ConfirmProvider>
             {/* Afspilleren ligger her, uden for siderne, så musikken fortsætter, når man skifter side */}
+            <FavoritesProvider>
             <PlayerProvider>
               <SkipLink />
               <Nav />
@@ -60,6 +62,7 @@ export default function RootLayout({ children }) {
               <MiniPlayer />
               <TabBar />
             </PlayerProvider>
+            </FavoritesProvider>
           </ConfirmProvider>
         </LanguageProvider>
       </body>

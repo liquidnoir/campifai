@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { useLanguage } from './LanguageProvider'
 import { usePlayer } from './PlayerProvider'
 import { formatClock } from '../lib/playerQueue'
+import FavoriteButton from './FavoriteButton'
 
 // Nummerlisten på en side (udgivelse, playliste, radio). Den ejer ikke lyden — et tryk på en række
 // giver den fælles afspiller listen, og musikken fortsætter, også når man skifter side.
@@ -131,6 +132,7 @@ export default function TrackList({
                 {row.artistName && <div className="notice">{row.artistName}</div>}
               </div>
               {durations?.[row.id] > 0 && <span className="tl-dur">{formatClock(durations[row.id])}</span>}
+              <FavoriteButton trackId={row.id} title={row.title} />
               {renderActions && (
                 <div className="tl-actions" onClick={(e) => e.stopPropagation()}>
                   {renderActions(row)}
