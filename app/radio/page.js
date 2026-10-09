@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { imagePublicUrl } from '../../lib/shared'
 import TrackList from '../../components/TrackList'
-import QueueMenu from '../../components/QueueMenu'
+import TrackMenu from '../../components/TrackMenu'
+import { ListSkeleton } from '../../components/Skeletons'
 import { usePlayer } from '../../components/PlayerProvider'
 import { buildRadioPools, takeNextBatch } from '../../lib/radioPool'
 import { useLanguage } from '../../components/LanguageProvider'
@@ -108,7 +109,7 @@ function RadioContent() {
     setTracks(await takeBatch())
   }
 
-  if (session === undefined || tracks === null) return <p className="notice">{t('common.loading')}</p>
+  if (session === undefined || tracks === null) return <ListSkeleton />
 
   return (
     <section>
@@ -126,7 +127,7 @@ function RadioContent() {
         onNeedMore={takeBatch}
         followQueue
         emptyMessage={t('radio.noTracksInGenre')}
-        renderActions={(track) => <QueueMenu track={track} />}
+        renderActions={(track) => <TrackMenu track={track} />}
       />
     </section>
   )

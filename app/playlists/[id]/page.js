@@ -4,7 +4,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { imagePublicUrl } from '../../../lib/shared'
 import TrackList from '../../../components/TrackList'
-import QueueMenu from '../../../components/QueueMenu'
+import TrackMenu from '../../../components/TrackMenu'
+import { ListSkeleton } from '../../../components/Skeletons'
+import { useConfirm } from '../../../components/ConfirmProvider'
+import { useDurations } from '../../../lib/useDurations'
 import { queueSignature } from '../../../lib/playerQueue'
 import { useLanguage } from '../../../components/LanguageProvider'
 
@@ -13,12 +16,14 @@ const SIGNED_URL_SECONDS = 60 * 60 * 6
 
 export default function PlaylistPage() {
   const { t } = useLanguage()
+  const confirm = useConfirm()
   const { id } = useParams()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
   const [playlist, setPlaylist] = useState(null)
   const [rows, setRows] = useState([]) // { id (playlist_tracks.id), track }
   const [loading, setLoading] = useState(true)
+  const durations = useDurations(rows.filter((r) => r.track?.url).map((r) => ({ id: r.track.id, url: r.track.url })))
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState('')
 
@@ -86,12 +91,12 @@ export default function PlaylistPage() {
   }
 
   async function deletePlaylist() {
-    if (!window.confirm(t('playlists.deleteConfirm', { title: playlist.title }))) return
+    if (!(await confirm(t('playlists.deleteConfirm', { title: playlist.title }), { label: t('common.delete'), danger: true }))) return
     await supabase.from('playlists').delete().eq('id', id)
     router.push('/playlists')
   }
 
-  if (session === undefined || loading) return <p className="notice">{t('common.loading')}</p>
+  if (session === undefined || loading) return <ListSkeleton />
   if (!playlist) return <p className="notice">{t('playlists.notFound')}</p>
 
   const playerTracks = rows
@@ -133,7 +138,8 @@ export default function PlaylistPage() {
           sourceKey={`playlist:${id}:${queueSignature(playerTracks)}`}
           tracks={playerTracks}
           emptyMessage={t('playlists.noPlayableTracks')}
-          renderActions={(track) => <QueueMenu track={track} />}
+          durations={durations}
+          renderActions={(track) => <TrackMenu track={track} />}
         />
       </div>
 

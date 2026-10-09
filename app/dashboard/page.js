@@ -15,6 +15,7 @@ import {
   uploadImage,
 } from '../../lib/shared'
 import { useLanguage } from '../../components/LanguageProvider'
+import { useConfirm } from '../../components/ConfirmProvider'
 import PriceFields from '../../components/PriceFields'
 import BulkTrackUpload from '../../components/BulkTrackUpload'
 import { priceColumns, priceFormFromRelease, validatePriceSettings } from '../../lib/pricing'
@@ -80,6 +81,7 @@ function Thumb({ url, color, radius = 8 }) {
 
 export default function Dashboard() {
   const { t, lang } = useLanguage()
+  const confirm = useConfirm()
   const [session, setSession] = useState(undefined)
   const [profile, setProfile] = useState(null)
   const [artists, setArtists] = useState([])
@@ -269,7 +271,7 @@ export default function Dashboard() {
             tracks: ownTracks.length,
           })
         : t('dashboard.deleteConfirmNamed', { name: a.name })
-    if (!window.confirm(question)) return
+    if (!(await confirm(question, { label: t('common.delete'), danger: true }))) return
     setArtistError('')
     try {
       if (ownTracks.length > 0) {
@@ -418,7 +420,7 @@ export default function Dashboard() {
       own.length > 0
         ? t('dashboard.releases.deleteConfirmWithTracks', { title: r.title, count: own.length })
         : t('dashboard.deleteConfirmTitled', { title: r.title })
-    if (!window.confirm(question)) return
+    if (!(await confirm(question, { label: t('common.delete'), danger: true }))) return
     setReleaseError('')
     try {
       if (own.length > 0) {
@@ -499,7 +501,7 @@ export default function Dashboard() {
   }
 
   async function deleteTrack(tr) {
-    if (!window.confirm(t('dashboard.deleteConfirmTitled', { title: tr.title }))) return
+    if (!(await confirm(t('dashboard.deleteConfirmTitled', { title: tr.title }), { label: t('common.delete'), danger: true }))) return
     await supabase.storage.from('tracks').remove([tr.audio_path])
     await supabase.from('tracks').delete().eq('id', tr.id)
     loadAll(session.user.id)
@@ -675,7 +677,22 @@ export default function Dashboard() {
         </p>
 
         {releases.length === 0 && (
-          <p className="notice" style={{ marginBottom: 16 }}>{t('dashboard.releases.empty')}</p>
+          <div className="empty-state" style={{ marginBottom: 16 }}>
+            <p>{t('dashboard.releases.empty')}</p>
+            {artists.length > 0 && (
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  const form = document.getElementById('create-release')
+                  form?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  form?.querySelector('input')?.focus({ preventScroll: true })
+                }}
+              >
+                {t('dashboard.releases.emptyAction')}
+              </button>
+            )}
+          </div>
         )}
 
         {releases.map((r) => {
@@ -832,7 +849,7 @@ export default function Dashboard() {
         {artists.length === 0 ? (
           <p className="notice" style={{ marginTop: 8 }}>{t('dashboard.releases.needArtistFirst')}</p>
         ) : (
-          <form onSubmit={createRelease} style={{ marginTop: 20 }}>
+          <form id="create-release" onSubmit={createRelease} style={{ marginTop: 20 }}>
             <h4 style={{ fontSize: 15, marginBottom: 12 }}>{t('dashboard.releases.createHeading')}</h4>
             <div className="field">
               <label>{t('dashboard.releases.artistLabel')}</label>

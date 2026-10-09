@@ -9,9 +9,12 @@ import { downloadReleaseZip } from '../../../lib/zipDownload'
 import { logDownload } from '../../../lib/logDownload'
 import { useLanguage } from '../../../components/LanguageProvider'
 import ShareButton from '../../../components/ShareButton'
-import AddToPlaylistButton from '../../../components/AddToPlaylistButton'
 import TrackList from '../../../components/TrackList'
-import QueueMenu from '../../../components/QueueMenu'
+import TrackMenu from '../../../components/TrackMenu'
+import LoginPrompt from '../../../components/LoginPrompt'
+import { PageSkeleton } from '../../../components/Skeletons'
+import { usePlayer } from '../../../components/PlayerProvider'
+import { useDurations, splitTotal } from '../../../lib/useDurations'
 import PurchaseGate from '../../../components/PurchaseGate'
 import PaymentReturn from '../../../components/PaymentReturn'
 import ReportLink from '../../../components/ReportLink'
@@ -21,6 +24,7 @@ const SIGNED_URL_SECONDS = 60 * 60 * 6
 
 function ReleaseContent() {
   const { t } = useLanguage()
+  const player = usePlayer()
   const { id } = useParams()
   const searchParams = useSearchParams()
   const highlightId = searchParams.get('t')
@@ -31,6 +35,8 @@ function ReleaseContent() {
   const [hasAccess, setHasAccess] = useState(null) // null = tjekker, true/false = kendt
   const [download, setDownload] = useState({ busy: false, progress: null, stage: null, error: null })
   const [downloadFormat, setDownloadFormat] = useState('') // tom = intet format valgt endnu
+  // Numrenes længde læses fra lydfilerne, når man er logget ind (uden login er der ingen adgang til filerne)
+  const durations = useDurations(session ? tracks : [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -118,7 +124,7 @@ function ReleaseContent() {
     }
   }
 
-  if (loading) return <p className="notice">{t('common.loading')}</p>
+  if (loading) return <PageSkeleton />
   if (!release) return <p className="notice">{t('release.notFound')}</p>
 
   const coverUrl = imagePublicUrl(supabase, release.cover_path)
@@ -126,6 +132,30 @@ function ReleaseContent() {
   const artistName = release.artists?.name
   const showPublisher = publisherName && publisherName.trim().toLowerCase() !== (artistName || '').trim().toLowerCase()
   const canInteract = Boolean(session)
+
+  const playerTracks = tracks.map((tr) => ({
+    id: tr.id,
+    title: tr.title,
+    url: tr.url,
+    artistName: tr.artist_id !== release.artist_id ? tr.artists?.name || '' : '',
+    // Til låseskærm og hovedtelefoner (kunstneren vises altid dér)
+    mediaArtist: tr.artists?.name || release.artists?.name || '',
+    releaseTitle: release.title,
+    releaseId: release.id,
+    audioPath: tr.audio_path,
+    coverUrl,
+  }))
+  const sourceKey = `release:${release.id}`
+  const releaseActive = player.sourceKey === sourceKey && player.queue.length > 0
+  const releasePlaying = releaseActive && player.playing
+  const knownSeconds = tracks.reduce((sum, tr) => sum + (durations[tr.id] || 0), 0)
+  const allDurationsKnown = tracks.length > 0 && tracks.every((tr) => durations[tr.id] > 0)
+  const total = allDurationsKnown ? splitTotal(knownSeconds) : null
+
+  function playRelease() {
+    if (releaseActive) player.togglePlay()
+    else if (playerTracks.length > 0) player.playQueue(playerTracks, startIndex, { sourceKey })
+  }
 
   const startIndex = Math.max(
     0,
@@ -169,6 +199,22 @@ function ReleaseContent() {
               label={t('release.shareRelease')}
             />
           </div>
+          <p className="notice" style={{ marginTop: 8 }}>
+            {t('release.trackCount', { count: tracks.length })}
+            {total && ` · ${total.hours > 0 ? t('release.total.hourMin', total) : t('release.total.min', total)}`}
+          </p>
+          {canInteract && tracks.length > 0 && (
+            <button className="btn release-play" type="button" onClick={playRelease}>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                {releasePlaying ? (
+                  <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
+                ) : (
+                  <path d="M8 5.5v13a.8.8 0 0 0 1.2.7l10.4-6.5a.8.8 0 0 0 0-1.4L9.2 4.8A.8.8 0 0 0 8 5.5z" />
+                )}
+              </svg>
+              {releasePlaying ? t('release.pause') : t('common.play')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -223,44 +269,21 @@ function ReleaseContent() {
         {tracks.length === 0 && <p className="notice">{t('release.noTracksYet')}</p>}
         {tracks.length > 0 && canInteract && (
           <TrackList
-            sourceKey={`release:${release.id}`}
-            tracks={tracks.map((tr) => ({
-              id: tr.id,
-              title: tr.title,
-              url: tr.url,
-              artistName: tr.artist_id !== release.artist_id ? tr.artists?.name || '' : '',
-              // Til låseskærm og hovedtelefoner (kunstneren vises altid dér)
-              mediaArtist: tr.artists?.name || release.artists?.name || '',
-              releaseTitle: release.title,
-              releaseId: release.id,
-              audioPath: tr.audio_path,
-              coverUrl,
-            }))}
+            sourceKey={sourceKey}
+            tracks={playerTracks}
             startIndex={startIndex}
-            renderActions={(track) => (
-              <>
-                <QueueMenu track={track} />
-                <AddToPlaylistButton trackId={track.id} />
-                {release.genre && (
-                  <Link href={`/radio?genre=${encodeURIComponent(release.genre)}&from=${track.id}`} className="btn ghost">
-                    {t('release.radio')}
-                  </Link>
-                )}
-                <ShareButton
-                  path={`/release/${release.id}?t=${track.id}`}
-                  title={`${track.title} — ${artistName || ''}`}
-                  label={t('release.shareTrack')}
-                />
-              </>
-            )}
+            durations={durations}
+            showPlayAll={false}
+            renderActions={(track) => <TrackMenu track={track} genre={release.genre} />}
           />
         )}
         {tracks.length > 0 && !canInteract && (
           <div>
-            {tracks.map((tr) => (
+            <LoginPrompt />
+            {tracks.map((tr, n) => (
               <div className="track-row" key={tr.id}>
+                <div className="notice" style={{ width: 20, flexShrink: 0, textAlign: 'right' }}>{n + 1}</div>
                 <div className="ttitle">{tr.title}</div>
-                <span className="notice">{t('release.loginToListen')}</span>
               </div>
             ))}
           </div>

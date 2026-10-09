@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { MAX_IMAGE_MB, controlStyle, imagePublicUrl, removeFolderFiles, removeFolderImages, removeImage, uploadImage } from '../../lib/shared'
 import { useLanguage } from '../../components/LanguageProvider'
+import { useConfirm } from '../../components/ConfirmProvider'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -24,6 +25,7 @@ const gridStyle = {
 
 export default function AdminPage() {
   const { t, lang } = useLanguage()
+  const confirm = useConfirm()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
   const [me, setMe] = useState(null)
@@ -218,7 +220,7 @@ export default function AdminPage() {
       return
     }
     if (role !== u.role && role === 'admin') {
-      if (!window.confirm(t('admin.confirmMakeAdmin', { name: u.display_name }))) return
+      if (!(await confirm(t('admin.confirmMakeAdmin', { name: u.display_name })))) return
     }
     setBusy(u.id)
     const changes = { display_name: name }
@@ -272,7 +274,7 @@ export default function AdminPage() {
     if (u.release_count > 0) parts.push(t('dashboard.artists.releaseCount', { count: u.release_count }))
     if (u.track_count > 0) parts.push(t('release.trackCount', { count: u.track_count }))
     const question = parts.join(', ') + t('admin.cannotBeUndoneSuffix')
-    if (!window.confirm(question)) return
+    if (!(await confirm(question, { label: t('common.delete'), danger: true }))) return
     setBusy(u.id)
     try {
       await removeFolderFiles(supabase, u.id, t)
@@ -334,7 +336,7 @@ export default function AdminPage() {
       trackCount > 0
         ? t('dashboard.artists.deleteConfirmWithContent', { name: a.name, releases: releaseCount, tracks: trackCount })
         : t('dashboard.deleteConfirmNamed', { name: a.name })
-    if (!window.confirm(question)) return
+    if (!(await confirm(question, { label: t('common.delete'), danger: true }))) return
     setBusy(a.id)
     try {
       const { data: own, error: listError } = await supabase

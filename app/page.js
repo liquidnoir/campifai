@@ -8,6 +8,8 @@ import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from '../components/LanguageProvider'
 import RecentlyPlayed from '../components/RecentlyPlayed'
 import HeroImage from '../components/HeroImage'
+import EmptyState from '../components/EmptyState'
+import { GridSkeleton, ListSkeleton } from '../components/Skeletons'
 
 function CoverTile({ imageUrl, color, label }) {
   if (imageUrl) {
@@ -186,7 +188,7 @@ export default function Home() {
           <div className="section-head">
             <h2>{t('home.releases.title')}</h2>
           </div>
-          {loading && <p className="notice">{t('common.loading')}</p>}
+          {loading && <GridSkeleton count={3} />}
           {!loading && filteredReleases.length === 0 && (
             <p className="notice">{t('home.releases.noMatch', { query })}</p>
           )}
@@ -210,8 +212,14 @@ export default function Home() {
           <div className="section-head">
             <h2>{t('home.collections.title')}</h2>
           </div>
-          {loading && <p className="notice">{t('common.loading')}</p>}
-          {!loading && collections.length === 0 && <p className="notice">{t('home.collections.empty')}</p>}
+          {loading && <GridSkeleton count={3} />}
+          {!loading && collections.length === 0 && (
+            <EmptyState
+              text={t('home.collections.empty')}
+              href={isAdmin ? '/admin/collections' : undefined}
+              action={isAdmin ? t('home.collections.emptyAction') : undefined}
+            />
+          )}
           <div className="grid">
             {collections.map((c) => (
               <Link href={`/collections/${c.id}`} key={c.id} className="sleeve">
@@ -263,6 +271,7 @@ export default function Home() {
         <div className="section-head">
           <h2>{searching ? t('home.artists.title') : t('home.artists.allTitle')}</h2>
         </div>
+        {loading && <ListSkeleton count={4} />}
         {!loading && searching && filteredArtists.length === 0 && (
           <p className="notice">{t('home.artists.noMatch', { query })}</p>
         )}

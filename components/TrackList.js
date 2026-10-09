@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react'
 import { useLanguage } from './LanguageProvider'
 import { usePlayer } from './PlayerProvider'
+import { formatClock } from '../lib/playerQueue'
 
 // Nummerlisten på en side (udgivelse, playliste, radio). Den ejer ikke lyden — et tryk på en række
 // giver den fælles afspiller listen, og musikken fortsætter, også når man skifter side.
@@ -16,6 +17,11 @@ import { usePlayer } from './PlayerProvider'
 //                  undervejs). Ellers vises altid listens egne numre — også selv om man har fjernet eller
 //                  flyttet numre i køen, så en udgivelse aldrig ser ud til at have mistet et nummer
 //   renderActions: valgfri, ekstra knapper i hver rækkes højre side (klik her skifter ikke nummer)
+//   durations:     valgfri, { nummerets id: sekunder } — vises som længde i hver række
+//   showPlayAll:   vis knappen "Afspil" over listen (standard ja; udgivelsessiden har sin egen ved coveret)
+//
+// Hver række har en afspil/pause-knap forrest. Et tryk på rækken starter nummeret; trykker man på det nummer,
+// der allerede spiller, sættes det på pause (og afspilles igen). Rækken kan også betjenes med tastaturet.
 export default function TrackList({
   tracks,
   startIndex = 0,
@@ -26,6 +32,8 @@ export default function TrackList({
   followQueue = false,
   emptyMessage,
   renderActions,
+  durations,
+  showPlayAll = true,
 }) {
   const { t } = useLanguage()
   const player = usePlayer()
@@ -59,7 +67,11 @@ export default function TrackList({
 
   // Et tryk på en række. Følger listen køen (radio), springes der til rækkens plads i køen. Ellers springes
   // der til nummeret i køen, hvis det stadig ligger der; er det fjernet, startes listen forfra herfra.
-  function handleRow(entry) {
+  function handleRow(entry, isCurrent) {
+    if (isCurrent) {
+      player.togglePlay()
+      return
+    }
     if (live) {
       player.playIndex(entry.queueIndex)
       return
@@ -78,8 +90,8 @@ export default function TrackList({
 
   return (
     <div>
-      {!active && (
-        <button className="btn" type="button" style={{ marginBottom: 14 }} onClick={() => handleRow({ track: tracks[startIndex], queueIndex: startIndex })}>
+      {!active && showPlayAll && (
+        <button className="btn" type="button" style={{ marginBottom: 14 }} onClick={() => handleRow({ track: tracks[startIndex], queueIndex: startIndex }, false)}>
           {t('common.play')}
         </button>
       )}
@@ -96,20 +108,29 @@ export default function TrackList({
           return (
             <div
               key={`${row.id}-${queueIndex}`}
-              className="track-row tl-row"
-              style={{
-                cursor: 'pointer',
-                background: isCurrent ? 'var(--surface)' : undefined,
-                borderRadius: 4,
-              }}
+              className={`track-row tl-row${isCurrent ? ' current' : ''}`}
               aria-current={isCurrent ? 'true' : undefined}
-              onClick={() => handleRow(entry)}
+              onClick={() => handleRow(entry, isCurrent)}
               ref={queueIndex === startIndex ? startRowRef : null}
             >
-              <div className="ttitle" style={isCurrent ? { color: 'var(--accent)' } : undefined}>
+              <button
+                type="button"
+                className="tl-play"
+                aria-label={t(isCurrent && player.playing ? 'trackList.pause' : 'trackList.play', { title: row.title })}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  {isCurrent && player.playing ? (
+                    <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
+                  ) : (
+                    <path d="M8 5.5v13a.8.8 0 0 0 1.2.7l10.4-6.5a.8.8 0 0 0 0-1.4L9.2 4.8A.8.8 0 0 0 8 5.5z" />
+                  )}
+                </svg>
+              </button>
+              <div className="ttitle">
                 {row.title}
                 {row.artistName && <div className="notice">{row.artistName}</div>}
               </div>
+              {durations?.[row.id] > 0 && <span className="tl-dur">{formatClock(durations[row.id])}</span>}
               {renderActions && (
                 <div className="tl-actions" onClick={(e) => e.stopPropagation()}>
                   {renderActions(row)}

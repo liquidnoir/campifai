@@ -4,9 +4,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../components/LanguageProvider'
+import { useConfirm } from '../../components/ConfirmProvider'
+import EmptyState from '../../components/EmptyState'
+import { ListSkeleton } from '../../components/Skeletons'
 
 export default function PlaylistsPage() {
   const { t } = useLanguage()
+  const confirm = useConfirm()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
   const [playlists, setPlaylists] = useState([])
@@ -58,12 +62,12 @@ export default function PlaylistsPage() {
   }
 
   async function deletePlaylist(p) {
-    if (!window.confirm(t('playlists.deleteConfirm', { title: p.title }))) return
+    if (!(await confirm(t('playlists.deleteConfirm', { title: p.title }), { label: t('common.delete'), danger: true }))) return
     await supabase.from('playlists').delete().eq('id', p.id)
     load()
   }
 
-  if (session === undefined || loading) return <p className="notice">{t('common.loading')}</p>
+  if (session === undefined || loading) return <ListSkeleton />
 
   return (
     <section>
@@ -83,7 +87,9 @@ export default function PlaylistsPage() {
         </form>
       </div>
 
-      {playlists.length === 0 && <p className="notice">{t('playlists.empty')}</p>}
+      {playlists.length === 0 && (
+        <EmptyState text={t('playlists.empty')} hint={t('playlists.emptyHint')} href="/" action={t('playlists.emptyAction')} />
+      )}
       {playlists.map((p) => (
         <div className="track-row" key={p.id}>
           <div className="ttitle">

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { imagePublicUrl } from '../../../lib/shared'
 import { useLanguage } from '../../../components/LanguageProvider'
+import { ArtistSkeleton } from '../../../components/Skeletons'
 import ReportLink from '../../../components/ReportLink'
 
 export default function ArtistPage() {
@@ -40,7 +41,7 @@ export default function ArtistPage() {
     setLoading(false)
   }
 
-  if (loading) return <p className="notice">{t('common.loading')}</p>
+  if (loading) return <ArtistSkeleton />
   if (!artist) return <p className="notice">{t('artist.notFound')}</p>
 
   const avatarUrl = imagePublicUrl(supabase, artist.image_path)

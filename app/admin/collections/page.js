@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase'
 import { MAX_IMAGE_MB, controlStyle, imagePublicUrl, removeImage, uploadImage } from '../../../lib/shared'
 import { SEASON_ORDER, collectionTitle } from '../../../lib/collections'
 import { useLanguage } from '../../../components/LanguageProvider'
+import { useConfirm } from '../../../components/ConfirmProvider'
 
 function Msg({ msg }) {
   if (!msg) return null
@@ -59,6 +60,7 @@ const currentYear = new Date().getFullYear()
 
 export default function CollectionsAdminPage() {
   const { t } = useLanguage()
+  const confirm = useConfirm()
   const router = useRouter()
   const [session, setSession] = useState(undefined)
   const [me, setMe] = useState(null)
@@ -207,7 +209,7 @@ export default function CollectionsAdminPage() {
   }
 
   async function deleteCollection(c) {
-    if (!window.confirm(t('adminCollections.deleteConfirm', { title: collectionTitle(c, t) }))) return
+    if (!(await confirm(t('adminCollections.deleteConfirm', { title: collectionTitle(c, t) }), { label: t('common.delete'), danger: true }))) return
     setBusy(c.id)
     try {
       if (c.cover_path) {

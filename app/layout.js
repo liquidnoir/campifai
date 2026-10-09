@@ -8,6 +8,8 @@ import MiniPlayer from '../components/MiniPlayer'
 import { PlayerProvider } from '../components/PlayerProvider'
 import { STANDALONE_SCRIPT } from '../lib/tabs'
 import { LanguageProvider } from '../components/LanguageProvider'
+import { ConfirmProvider } from '../components/ConfirmProvider'
+import SkipLink from '../components/SkipLink'
 
 // Skrifttyperne hentes, når siden bygges, og leveres derefter fra vores egen server —
 // ikke fra Google. Så sendes besøgendes IP-adresser ikke til Google.
@@ -46,16 +48,19 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <LanguageProvider>
-          {/* Afspilleren ligger her, uden for siderne, så musikken fortsætter, når man skifter side */}
-          <PlayerProvider>
-            <Nav />
-            <main className="wrap">
-              <AuthGate>{children}</AuthGate>
-            </main>
-            <Footer />
-            <MiniPlayer />
-            <TabBar />
-          </PlayerProvider>
+          <ConfirmProvider>
+            {/* Afspilleren ligger her, uden for siderne, så musikken fortsætter, når man skifter side */}
+            <PlayerProvider>
+              <SkipLink />
+              <Nav />
+              <main className="wrap" id="main" tabIndex={-1}>
+                <AuthGate>{children}</AuthGate>
+              </main>
+              <Footer />
+              <MiniPlayer />
+              <TabBar />
+            </PlayerProvider>
+          </ConfirmProvider>
         </LanguageProvider>
       </body>
     </html>

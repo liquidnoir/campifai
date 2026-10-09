@@ -198,10 +198,8 @@ section { padding: 36px 0; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
-/* Nummerrækker med knapper: på en smal skærm bryder knapperne om under titlen, så titlen er læsbar */
-.tl-row { flex-wrap: wrap; row-gap: 8px; }
-.tl-row .ttitle { flex: 1 1 160px; min-width: 0; }
-.tl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; justify-content: flex-end; }
+/* Nummerrækker: se afsnittet UX-forbedringer nederst */
+.tl-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* Forsidebilledet: en rolig flade (3:2) mens billedet hentes, så intet spring og intet forkert billede */
 .hero-art-loading { aspect-ratio: 3 / 2; background: var(--surface); border-radius: 3px; }
@@ -265,3 +263,65 @@ section { padding: 36px 0; }
   .mini-cover { width: 40px; height: 40px; }
   .mini-info { gap: 8px; }
 }
+
+/* ===== UX-forbedringer ===== */
+
+/* Tydelig fokusramme for tastaturet (ikke for mus/berøring) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap:focus { outline: none; }
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 100; padding: 10px 14px; font-size: 14px; color: var(--bg); background: var(--ink); border-radius: 3px; }
+.skip-link:focus { top: 8px; }
+
+/* Nummerrække: afspil/pause forrest, titel, længde og ⋯-menu */
+.tl-row { cursor: pointer; border-radius: 4px; gap: 12px; flex-wrap: nowrap; -webkit-tap-highlight-color: transparent; }
+.tl-row:hover { background: var(--surface); }
+.tl-row.current { background: var(--surface); }
+.tl-row.current .ttitle { color: var(--accent); }
+.tl-row .ttitle { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.tl-play { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; color: var(--ink); background: none; border: 1px solid var(--border); border-radius: 50%; cursor: pointer; }
+.tl-play svg { width: 16px; height: 16px; }
+.tl-row:hover .tl-play { border-color: var(--ink); }
+.tl-row.current .tl-play { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.tl-dur { flex-shrink: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tl-actions { flex-wrap: nowrap; margin-left: 0; }
+
+/* ⋯-menuen ved et nummer */
+.tm-wrap { position: relative; display: inline-block; }
+.tm-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; }
+.tm-btn svg { width: 18px; height: 18px; }
+.tm-menu { position: absolute; right: 0; z-index: 30; width: 230px; max-width: calc(100vw - 24px); padding: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.tm-item { display: block; width: 100%; padding: 11px 10px; font: inherit; font-size: 14px; text-align: left; color: var(--ink); background: none; border: none; border-radius: 3px; cursor: pointer; }
+.tm-item:hover, .tm-item:focus-visible { background: var(--bg); }
+.tm-back { color: var(--muted); }
+.tm-note { padding: 8px 10px; }
+.tm-form { display: flex; gap: 6px; padding: 8px 4px 4px; }
+.tm-form input { flex: 1; min-width: 0; font-family: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); color: var(--ink); }
+.tm-form .btn { padding: 8px 12px; }
+.tm-feedback { position: absolute; top: 110%; right: 0; z-index: 30; margin-top: 4px; padding: 6px 10px; white-space: nowrap; color: var(--bg); background: var(--ink); border-radius: 3px; }
+
+/* "Afspil"-knappen ved coveret på en udgivelse */
+.release-play { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 11px 22px; }
+.release-play svg { width: 16px; height: 16px; }
+
+/* Boks til besøgende uden login */
+.login-prompt { margin-bottom: 8px; padding: 18px; }
+.login-prompt h3 { font-size: 17px; }
+.login-prompt p { margin: 6px 0 0; line-height: 1.5; }
+.login-prompt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+/* Bekræftelsesdialog */
+.confirm-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.6); }
+.confirm-dialog { width: 100%; max-width: 420px; padding: 22px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
+.confirm-message { margin: 0; font-size: 15px; line-height: 1.5; white-space: pre-line; }
+.confirm-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.btn.danger { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Skeletter */
+.skel { background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%); background-size: 200% 100%; animation: skel-shimmer 1.4s ease-in-out infinite; }
+.cover-skel { aspect-ratio: 1; border-radius: 3px; }
+@keyframes skel-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+
+/* Tomme lister med en knap */
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 0 4px; }
+.empty-state p { margin: 0; line-height: 1.5; }
