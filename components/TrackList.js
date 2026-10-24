@@ -4,6 +4,7 @@ import { useLanguage } from './LanguageProvider'
 import { usePlayer } from './PlayerProvider'
 import { formatClock } from '../lib/playerQueue'
 import FavoriteButton from './FavoriteButton'
+import { isVideoPath } from '../lib/mediaFiles'
 
 // Nummerlisten på en side (udgivelse, playliste, radio). Den ejer ikke lyden — et tryk på en række
 // giver den fælles afspiller listen, og musikken fortsætter, også når man skifter side.
@@ -129,6 +130,7 @@ export default function TrackList({
               </button>
               <div className="ttitle">
                 {row.title}
+                {isVideoPath(row.audioPath) && <span className="tl-badge">{t('track.video')}</span>}
                 {row.artistName && <div className="notice">{row.artistName}</div>}
               </div>
               {durations?.[row.id] > 0 && <span className="tl-dur">{formatClock(durations[row.id])}</span>}

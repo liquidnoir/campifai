@@ -33,5 +33,7 @@ create policy "Man kan kun fjerne egne favoritter"
   to authenticated
   using (user_id = (select auth.uid()));
 
-revoke all on public.favorites from anon;
+-- Supabase giver som standard indloggede brugere alle rettigheder på nye tabeller (også at tømme hele tabellen,
+-- hvilket række-reglerne ikke kan stoppe). Her fjernes alt, og kun det nødvendige gives tilbage.
+revoke all on public.favorites from anon, authenticated;
 grant select, insert, delete on public.favorites to authenticated;

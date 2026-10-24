@@ -7,6 +7,7 @@ import { collectionTitle } from '../lib/collections'
 import { getAppSettings } from '../lib/appSettings'
 import { useLanguage } from '../components/LanguageProvider'
 import RecentlyPlayed from '../components/RecentlyPlayed'
+import FavoritesRow from '../components/FavoritesRow'
 import HeroImage from '../components/HeroImage'
 import EmptyState from '../components/EmptyState'
 import { GridSkeleton, ListSkeleton } from '../components/Skeletons'
@@ -182,6 +183,7 @@ export default function Home() {
       </section>
 
       {!searching && session && <RecentlyPlayed userId={session.user.id} />}
+      {!searching && session && <FavoritesRow />}
 
       {searching ? (
         <section>

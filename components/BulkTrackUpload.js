@@ -4,7 +4,7 @@ import { useLanguage } from './LanguageProvider'
 import { controlStyle } from '../lib/shared'
 import { fileKey, formatMb, planSelection, titleFromFileName } from '../lib/bulkUpload'
 
-const ACCEPT = '.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,audio/*'
+const ACCEPT = '.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.mp4,.m4v,.webm,audio/*,video/mp4,video/webm'
 
 // Upload af flere numre til en udgivelse på én gang.
 //

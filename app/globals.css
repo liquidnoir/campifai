@@ -375,3 +375,13 @@ section { padding: 36px 0; }
 .np-queue-btn { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 9px 12px; font: inherit; font-size: 13px; color: var(--ink); background: none; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; }
 .np-queue-btn svg { width: 16px; height: 16px; }
 @media (max-height: 640px) { .np-cover { margin-top: 1vh; } .np-titles { margin-top: 2vh; } .np-play { width: 60px; height: 60px; } }
+
+/* Knapper over favoritlisten */
+.fav-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.fav-actions .release-play { margin-top: 0; }
+
+/* ===== Video ===== */
+.tl-badge { display: inline-block; margin-left: 8px; padding: 0 6px; font-size: 10px; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: middle; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; }
+.np-video-slot { align-self: center; width: 100%; height: min(46vh, 440px); margin-top: 2vh; border-radius: 12px; background: #000; }
+@supports (height: 100dvh) { .np-video-slot { height: min(46dvh, 440px); } }
+@media (max-height: 640px) { .np-video-slot { height: 40vh; } }

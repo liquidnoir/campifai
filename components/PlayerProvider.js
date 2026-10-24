@@ -70,6 +70,9 @@ export function PlayerProvider({ children }) {
   const [time, setTime] = useState({ currentTime: 0, duration: 0 })
   // Kort bekræftelse, når et nummer er lagt i køen: { id, kind: 'next' | 'end', title }
   const [notice, setNotice] = useState(null)
+  // Video: har det aktuelle nummer billede, og hvor skal det vises (fuldskærms-afspilleren melder en plads)
+  const [hasVideo, setHasVideo] = useState(false)
+  const [videoSlot, setVideoSlot] = useState(null) // { top, left, width, height } eller null = skjult
 
   const audioRef = useRef(null)
   const queueRef = useRef(queue)
@@ -256,6 +259,19 @@ export function PlayerProvider({ children }) {
     }
 
     // Luk afspilleren: stop lyden, og glem køen
+    // Rigtig fuldskærm for videoen (på iPhone den indbyggede videoafspiller)
+    const enterVideoFullscreen = () => {
+      const el = audioRef.current
+      if (!el) return
+      try {
+        if (el.requestFullscreen) el.requestFullscreen()
+        else if (el.webkitEnterFullscreen) el.webkitEnterFullscreen()
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen()
+      } catch {
+        // ikke understøttet her
+      }
+    }
+
     const stop = () => {
       const el = audioRef.current
       if (el) {
@@ -273,12 +289,13 @@ export function PlayerProvider({ children }) {
       setHasMore(false)
       setPlaying(false)
       setNeedsTap(false)
+      setHasVideo(false)
       setTime({ currentTime: 0, duration: 0 })
       clearTimeout(noticeTimerRef.current)
       setNotice(null)
     }
 
-    apiRef.current = { playQueue, playIndex, playNext, addToQueue, removeFromQueue, moveInQueue, clearUpcoming, play, pause, togglePlay, next, previous, seek, stop, requestMore, goTo }
+    apiRef.current = { playQueue, playIndex, playNext, addToQueue, removeFromQueue, moveInQueue, clearUpcoming, play, pause, togglePlay, next, previous, seek, stop, requestMore, goTo, enterVideoFullscreen }
   }
   const api = apiRef.current
 
@@ -545,19 +562,39 @@ export function PlayerProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ queue, index, current, playing, needsTap, sourceKey, hasNext, hasPrevious, hasMore, loop, notice, ...api }),
+    () => ({ queue, index, current, playing, needsTap, sourceKey, hasNext, hasPrevious, hasMore, loop, notice, hasVideo, videoSlot, setVideoSlot, ...api }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queue, index, playing, needsTap, sourceKey, hasNext, hasPrevious, hasMore, loop, notice]
+    [queue, index, playing, needsTap, sourceKey, hasNext, hasPrevious, hasMore, loop, notice, hasVideo, videoSlot]
   )
 
   return (
     <PlayerContext.Provider value={value}>
       <TimeContext.Provider value={time}>
         {children}
-        <audio
+        {/* Ét medieelement for hele appen. Det er et video-element, så en musikvideo kan vises; for almindelige
+            lydfiler er det skjult og opfører sig som før. Fuldskærms-afspilleren melder en plads (videoSlot),
+            og videoen lægges oven på den, uden at afspilningen afbrydes. */}
+        <video
           ref={audioRef}
           preload="auto"
-          style={{ display: 'none' }}
+          playsInline
+          style={
+            hasVideo && videoSlot
+              ? {
+                  position: 'fixed',
+                  top: videoSlot.top,
+                  left: videoSlot.left,
+                  width: videoSlot.width,
+                  height: videoSlot.height,
+                  zIndex: 55,
+                  objectFit: 'contain',
+                  background: '#000',
+                  borderRadius: 12,
+                }
+              : { display: 'none' }
+          }
+          onLoadStart={() => setHasVideo(false)}
+          onLoadedMetadata={(event) => setHasVideo(event.currentTarget.videoWidth > 0)}
           onEnded={handleEnded}
           onPlay={() => {
             setPlaying(true)

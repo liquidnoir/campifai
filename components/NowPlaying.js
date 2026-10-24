@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from './LanguageProvider'
 import { usePlayer, usePlayerTime } from './PlayerProvider'
@@ -88,6 +88,38 @@ export default function NowPlaying({ onClose, onShowQueue }) {
   const rootRef = useRef(null)
   const touchRef = useRef(null)
   const returnFocusRef = useRef(null)
+  const slotRef = useRef(null)
+  const { hasVideo, setVideoSlot } = player
+
+  // Video: fortæl afspilleren, hvor billedet skal ligge (pladsens placering på skærmen), og hold den opdateret,
+  // når vinduet ændrer størrelse eller dreje. Forsvinder pladsen, skjules videoen igen.
+  useLayoutEffect(() => {
+    const el = slotRef.current
+    if (!hasVideo || !el) {
+      setVideoSlot(null)
+      return undefined
+    }
+    function measure() {
+      const rect = el.getBoundingClientRect()
+      setVideoSlot((prev) =>
+        prev && prev.top === rect.top && prev.left === rect.left && prev.width === rect.width && prev.height === rect.height
+          ? prev
+          : { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+      )
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    observer?.observe(el)
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+      setVideoSlot(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasVideo])
 
   // Fokus ind i afspilleren; Escape lukker; Tab bliver inde; siden bagved ruller ikke
   useEffect(() => {
@@ -171,14 +203,26 @@ export default function NowPlaying({ onClose, onShowQueue }) {
             <Icon name="chevronDown" />
           </button>
           <span className="np-label">{t('nowPlaying.title')}</span>
-          <span className="np-icon-btn np-spacer" aria-hidden="true" />
+          {hasVideo ? (
+            <button type="button" className="np-icon-btn" aria-label={t('nowPlaying.videoFullscreen')} onClick={player.enterVideoFullscreen}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              </svg>
+            </button>
+          ) : (
+            <span className="np-icon-btn np-spacer" aria-hidden="true" />
+          )}
         </div>
 
-        <div
-          className="np-cover"
-          style={current.coverUrl ? { backgroundImage: `url(${current.coverUrl})` } : undefined}
-          aria-hidden="true"
-        />
+        {hasVideo ? (
+          <div ref={slotRef} className="np-video-slot" aria-hidden="true" />
+        ) : (
+          <div
+            className="np-cover"
+            style={current.coverUrl ? { backgroundImage: `url(${current.coverUrl})` } : undefined}
+            aria-hidden="true"
+          />
+        )}
 
         <div className="np-titles">
           <div className="np-text">
