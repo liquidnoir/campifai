@@ -18,6 +18,8 @@ import { useLanguage } from '../../components/LanguageProvider'
 import { useConfirm } from '../../components/ConfirmProvider'
 import PriceFields from '../../components/PriceFields'
 import BulkTrackUpload from '../../components/BulkTrackUpload'
+import { formatLabelFromPath, isVideoPath } from '../../lib/mediaFiles'
+import { isAudioFile } from '../../lib/bulkUpload'
 import { priceColumns, priceFormFromRelease, validatePriceSettings } from '../../lib/pricing'
 
 const COLORS = ['#4B5A3E', '#B8452B', '#D89A2E', '#221F19']
@@ -26,6 +28,7 @@ const RELEASE_TYPES = Object.keys(RELEASE_TYPE_LIMITS)
 // Supabase gratis-plan tillader højst 50 MB pr. fil.
 // Opgraderer du planen (og hæver grænsen under Storage → Settings), kan du ændre tallet her.
 const MAX_UPLOAD_MB = 50
+const REPLACE_ACCEPT = '.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff,.aif,.mp4,.m4v,.webm,audio/*,video/mp4,video/webm'
 
 function tooBigMessage(bytes, t) {
   const mb = (bytes / 1024 / 1024).toFixed(1)
@@ -125,6 +128,7 @@ export default function Dashboard() {
   const [savingTrackId, setSavingTrackId] = useState(null)
   const [reorderBusy, setReorderBusy] = useState(false)
   const [trackUploadError, setTrackUploadError] = useState('')
+  const [replacingTrackId, setReplacingTrackId] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -507,6 +511,52 @@ export default function Dashboard() {
     loadAll(session.user.id)
   }
 
+  // Skifter lydfilen (eller videoen) ud på et eksisterende nummer. Rækkefølgen er: upload den nye fil, peg nummeret på den,
+  // og først derefter slettes den gamle. Fejler et trin, ryddes den nye fil op, og nummeret er uændret.
+  // Nummeret beholder sit id, så afspilninger, favoritter, playlister og køb følger med.
+  async function replaceTrackFile(tr, file) {
+    if (!file) return
+    setTrackUploadError('')
+    if (!isAudioFile(file)) {
+      setTrackUploadError(t('dashboard.bulk.skipped.notAudio', { name: file.name }))
+      return
+    }
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      setTrackUploadError(tooBigMessage(file.size, t))
+      return
+    }
+    const oldPath = tr.audio_path
+    const oldFormat = formatLabelFromPath(oldPath) || '?'
+    const newFormat = formatLabelFromPath(file.name) || '?'
+    const ok = await confirm(t('dashboard.releases.replaceConfirm', { title: tr.title, from: oldFormat, to: newFormat, name: file.name }), {
+      label: t('dashboard.releases.replaceFile'),
+    })
+    if (!ok) return
+    setReplacingTrackId(tr.id)
+    const newPath = `${session.user.id}/${Date.now()}-replace-${safeFileName(file.name)}`
+    const { error: uploadErr } = await supabase.storage.from('tracks').upload(newPath, file)
+    if (uploadErr) {
+      setReplacingTrackId(null)
+      setTrackUploadError(/maximum allowed size|too large|exceeded/i.test(uploadErr.message) ? tooBigMessage(file.size, t) : uploadErr.message)
+      return
+    }
+    const { data: updated, error: updateErr } = await supabase
+      .from('tracks')
+      .update({ audio_path: newPath })
+      .eq('id', tr.id)
+      .select('id')
+    if (updateErr || !updated || updated.length === 0) {
+      await supabase.storage.from('tracks').remove([newPath])
+      setReplacingTrackId(null)
+      setTrackUploadError(updateErr?.message || t('common.somethingWrong'))
+      return
+    }
+    // Den gamle fil er nu ikke i brug. Kan den ikke slettes, er det kun en overskydende fil og ikke en fejl for brugeren.
+    await supabase.storage.from('tracks').remove([oldPath])
+    setReplacingTrackId(null)
+    loadAll(session.user.id)
+  }
+
   // Uploader ét nummer til en udgivelse: først filen, så rækken i databasen. Fejler det andet,
   // fjernes den uploadede fil igen. Bruges af upload af flere numre på én gang.
   async function uploadOneTrack(release, { file, title, artistId, slot }) {
@@ -822,6 +872,27 @@ export default function Dashboard() {
                       >
                         {savingTrackId === tr.id ? t('common.saving') : t('common.save')}
                       </button>
+                      <div className="track-file" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                          {t('dashboard.releases.fileFormat')}:{' '}
+                          <strong>{formatLabelFromPath(tr.audio_path) || '?'}</strong>
+                          {isVideoPath(tr.audio_path) ? ` (${t('track.video').toLowerCase()})` : ''}
+                        </span>
+                        <label className={`btn ghost${replacingTrackId === tr.id ? ' disabled' : ''}`} style={{ cursor: 'pointer', textAlign: 'center' }}>
+                          {replacingTrackId === tr.id ? t('dashboard.releases.replacing') : t('dashboard.releases.replaceFile')}
+                          <input
+                            type="file"
+                            accept={REPLACE_ACCEPT}
+                            disabled={replacingTrackId !== null}
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0]
+                              e.target.value = ''
+                              replaceTrackFile(tr, f)
+                            }}
+                          />
+                        </label>
+                      </div>
                       <button className="btn ghost" type="button" onClick={() => deleteTrack(tr)}>
                         {t('common.delete')}
                       </button>

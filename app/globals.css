@@ -385,3 +385,4 @@ section { padding: 36px 0; }
 .np-video-slot { align-self: center; width: 100%; height: min(46vh, 440px); margin-top: 2vh; border-radius: 12px; background: #000; }
 @supports (height: 100dvh) { .np-video-slot { height: min(46dvh, 440px); } }
 @media (max-height: 640px) { .np-video-slot { height: 40vh; } }
+.btn.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
